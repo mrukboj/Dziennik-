@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalkulator Akordowy</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0f1117; --panel:#161b27; --border:#252d40;
+  --accent:#00e5ff; --accent2:#ff6b35; --green:#39d98a;
+  --yellow:#ffd166; --red:#ef476f; --text:#e2e8f0; --muted:#64748b;
+  --mono:'Share Tech Mono',monospace; --body:'Barlow',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--body);min-height:100vh;}
+header{background:var(--panel);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.logo{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:2px;}
+.mbadge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);padding:4px 10px;border-radius:20px;border:1px solid var(--border);}
+.app{max-width:900px;margin:0 auto;padding:20px 16px 80px;}
+.stitle{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.stitle::after{content:'';flex:1;height:1px;background:var(--border);}
+.tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--panel);padding:4px;border-radius:8px;border:1px solid var(--border);}
+.tbtn{flex:1;background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11px;padding:8px;border-radius:6px;cursor:pointer;text-transform:uppercase;}
+.tbtn.active{background:var(--accent);color:#000;font-weight:700;}
+.tc{display:none;} .tc.active{display:block;}
+/* dashboard */
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;}
+@media(max-width:600px){.pgrid{grid-template-columns:1fr;}}
+.pcard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;cursor:pointer;}
+.pcard.active{border-color:var(--accent);}
+.plabel{font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;}
+.pvalue{font-size:18px;font-weight:700;font-family:var(--mono);margin-bottom:8px;}
+.ptrack{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.pfill{height:100%;border-radius:2px;transition:width .5s;}
+.psub{font-size:10px;color:var(--muted);margin-top:5px;font-family:var(--mono);}
+.dban{background:linear-gradient(135deg,#0d2137,#0a1a2e);border:1px solid var(--accent);border-radius:10px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.dleft{font-size:12px;color:var(--muted);font-family:var(--mono);}
+.dleft span{display:block;font-size:11px;color:var(--accent);margin-top:2px;}
+.dright{text-align:right;}
+.damt{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--accent);line-height:1;}
+.dsub{font-size:10px;color:var(--muted);margin-top:4px;font-family:var(--mono);}
+.srow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;}
+@media(max-width:500px){.srow{grid-template-columns:1fr 1fr;}}
+.sbox{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;}
+.slabel{font-size:9px;letter-spacing:2px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;}
+.sval{font-family:var(--mono);font-size:17px;font-weight:700;margin-top:4px;color:var(--accent);}
+.sval.warn{color:var(--yellow);} .sval.good{color:var(--green);}
+.pselrow{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+.pselbtn{flex:1;min-width:80px;background:var(--bg);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:10px;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:center;}
+.pselbtn.active{border-color:var(--accent);color:var(--accent);}
+/* form */
+.fpanel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px;}
+.frow{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.fg{display:flex;flex-direction:column;gap:4px;flex:1;min-width:100px;}
+.fg label{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase;}
+.fg input,.fg select{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:13px;padding:8px 10px;border-radius:6px;outline:none;}
+.fg input:focus,.fg select:focus{border-color:var(--accent);}
+.fg select option{background:var(--panel);}
+.prow{display:flex;gap:8px;margin-bottom:6px;align-items:center;}
+.prow input{background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:13px;padding:7px 10px;border-radius:6px;outline:none;}
+.prow input:focus{border-color:var(--accent);}
+.iopis{flex:2;min-width:80px;} .istawka{flex:1;min-width:70px;} .iil{flex:1;min-width:60px;}
+.isum{flex:1;min-width:70px;background:#0a1520!important;color:var(--accent)!important;cursor:default;}
+.bdel{background:none;border:1px solid var(--border);color:var(--red);width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.badd{background:none;border:1px dashed var(--border);color:var(--muted);padding:7px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:11px;width:100%;margin-bottom:12px;}
+.egrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+@media(max-width:500px){.egrid{grid-template-columns:1fr;}}
+.urow{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.ubtn{background:var(--bg);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer;}
+.ubtn.active{border-color:var(--accent2);color:var(--accent2);background:rgba(255,107,53,.08);}
+.dres{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.rbrt{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--green);}
+.rnet{font-family:var(--mono);font-size:15px;color:var(--yellow);margin-top:5px;}
+.rbrk{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.8;}
+.bsub{width:100%;background:var(--accent);color:#000;border:none;padding:12px;border-radius:8px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;text-transform:uppercase;}
+/* historia */
+.hcard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;}
+.hdate{font-family:var(--mono);font-size:12px;color:var(--accent);}
+.hmeta{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+.htotal{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green);}
+.hnetto{font-family:var(--mono);font-size:11px;color:var(--yellow);}
+.hdet{margin-top:10px;border-top:1px solid var(--border);padding-top:10px;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.8;white-space:pre-wrap;}
+.bact{background:none;cursor:pointer;font-size:15px;width:34px;height:34px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.bact.e{border:1px solid var(--accent);}
+.bact.d{border:1px solid var(--red);}
+/* settings */
+.spanel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px;}
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:500px){.sgrid{grid-template-columns:1fr;}}
+.empty{text-align:center;padding:30px;color:var(--muted);font-family:var(--mono);font-size:12px;}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">▮ AKORD.CALC</div>
+  <div class="mbadge" id="mbadge">—</div>
+</header>
+<div class="app">
+  <div class="tabs">
+    <button class="tbtn active" id="tb0" onclick="goTab(0)">Dashboard</button>
+    <button class="tbtn" id="tb1" onclick="goTab(1)">+ Wpis</button>
+    <button class="tbtn" id="tb2" onclick="goTab(2)">Historia</button>
+    <button class="tbtn" id="tb3" onclick="goTab(3)">Ustawienia</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="t0" class="tc active">
+    <div class="stitle">Cel aktywny</div>
+    <div class="pselrow" id="pselrow"></div>
+    <div class="stitle">Postęp do progów</div>
+    <div class="pgrid" id="pgrid"></div>
+    <div class="dban">
+      <div class="dleft">POTRZEBNA DNIÓWKA<span id="dcel">cel: —</span></div>
+      <div class="dright">
+        <div class="damt" id="damt">— zł</div>
+        <div class="dsub" id="dsub">—</div>
+      </div>
+    </div>
+    <div class="stitle">Miesiąc w liczbach</div>
+    <div class="srow">
+      <div class="sbox"><div class="slabel">Brutto</div><div class="sval" id="svbrt">0 zł</div></div>
+      <div class="sbox"><div class="slabel">Netto ~73%</div><div class="sval warn" id="svnet">0 zł</div></div>
+      <div class="sbox"><div class="slabel">Dni przepr.</div><div class="sval" id="svdni">0</div></div>
+      <div class="sbox"><div class="slabel">Śr. dniówka</div><div class="sval" id="svsrd">— zł</div></div>
+    </div>
+  </div>
+
+  <!-- WPIS -->
+  <div id="t1" class="tc">
+    <div class="fpanel">
+      <div class="stitle">Dane dnia</div>
+      <div class="frow">
+        <div class="fg" style="flex:1.5"><label>Data</label><input type="date" id="fData"></div>
+        <div class="fg"><label>Czas pracy</label><input type="text" id="fCzas" placeholder="8:00"></div>
+        <div class="fg"><label>Typ</label>
+          <select id="fTyp">
+            <option value="A">Akord (A)</option>
+            <option value="G">Godzinówka (G)</option>
+            <option value="URL">Urlop (URL)</option>
+          </select>
+        </div>
+      </div>
+      <div id="sA">
+        <div class="stitle">Uruchomienie</div>
+        <div class="urow">
+          <button class="ubtn active" id="ub0" onclick="setU(0)">Brak</button>
+          <button class="ubtn" id="ub30" onclick="setU(30)">30 zł</button>
+          <button class="ubtn" id="ub60" onclick="setU(60)">60 zł</button>
+        </div>
+        <div class="stitle">Pozycje akordowe</div>
+        <div id="poz"></div>
+        <button class="badd" id="bAddPoz">+ dodaj pozycję</button>
+      </div>
+      <div id="sG" style="display:none">
+        <div class="frow"><div class="fg"><label>Stawka godzinowa</label><input type="number" id="fStG" step="0.01"></div></div>
+      </div>
+      <div id="sURL" style="display:none">
+        <div class="frow"><div class="fg"><label>Stawka urlopowa</label><input type="number" id="fStURL" step="0.01"></div></div>
+      </div>
+      <div class="stitle">Przestoje płatne</div>
+      <div class="egrid">
+        <div class="fg"><label>Przerwa (h)</label><input type="text" id="fPrzP" placeholder="0:00"></div>
+        <div class="fg"><label>Awaria (h)</label><input type="text" id="fPrzA" placeholder="0:00"></div>
+      </div>
+      <div class="stitle">Dodatki</div>
+      <div class="egrid">
+        <div class="fg"><label>Nocny (h)</label><input type="text" id="fDodN" placeholder="0:00"></div>
+        <div class="fg"><label>Sobota</label>
+          <select id="fDodS">
+            <option value="0">Nie</option>
+            <option value="1">Tak (+200 zł)</option>
+          </select>
+        </div>
+      </div>
+      <div class="stitle">Wynik dnia</div>
+      <div class="dres">
+        <div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono)">BRUTTO</div>
+          <div class="rbrt" id="rBrt">0,00 zł</div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:6px">NETTO (~73%)</div>
+          <div class="rnet" id="rNet">0,00 zł</div>
+        </div>
+        <div class="rbrk" id="rBrk"></div>
+      </div>
+      <button class="bsub" id="bSave">ZAPISZ WPIS</button>
+    </div>
+  </div>
+
+  <!-- HISTORIA -->
+  <div id="t2" class="tc">
+    <div class="stitle">Wszystkie wpisy</div>
+    <div id="hlist"></div>
+  </div>
+
+  <!-- USTAWIENIA -->
+  <div id="t3" class="tc">
+    <div class="spanel">
+      <div class="stitle">Miesiąc i dni</div>
+      <div class="sgrid">
+        <div class="fg"><label>Miesiąc / rok</label><input type="month" id="sMonth"></div>
+        <div class="fg"><label>Dni pracujących</label><input type="number" id="sDni"></div>
+      </div>
+      <div class="stitle" style="margin-top:16px">Progi netto / brutto zł</div>
+      <div class="sgrid">
+        <div class="fg"><label>Dopuszczający netto</label><input type="number" id="pDop"></div>
+        <div class="fg"><label>Dopuszczający brutto</label><input type="number" id="pDopB"></div>
+        <div class="fg"><label>Dostateczny netto</label><input type="number" id="pDost"></div>
+        <div class="fg"><label>Dostateczny brutto</label><input type="number" id="pDostB"></div>
+        <div class="fg"><label>Dobry netto</label><input type="number" id="pDobry"></div>
+        <div class="fg"><label>Dobry brutto</label><input type="number" id="pDobryB"></div>
+        <div class="fg"><label>Bardzo dobry netto</label><input type="number" id="pBdb"></div>
+        <div class="fg"><label>Bardzo dobry brutto</label><input type="number" id="pBdbB"></div>
+      </div>
+      <div class="stitle" style="margin-top:16px">Stawki domyślne</div>
+      <div class="sgrid">
+        <div class="fg"><label>Godzinowa</label><input type="number" id="stG" step="0.01"></div>
+        <div class="fg"><label>Urlopowa</label><input type="number" id="stURL" step="0.01"></div>
+        <div class="fg"><label>Nocna</label><input type="number" id="stN" step="0.01"></div>
+        <div class="fg"><label>Sobotni</label><input type="number" id="stS" step="1"></div>
+      </div>
+      <button class="bsub" style="margin-top:16px" onclick="saveSett()">ZAPISZ USTAWIENIA</button>
+    </div>
+    <div class="spanel">
+      <div class="stitle" style="color:var(--red)">Reset</div>
+      <button class="bsub" style="background:var(--red);color:#fff" onclick="resetAll()">WYCZYŚĆ WSZYSTKIE DANE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var NETTO = 0.73;
+var PK = ['dop','dost','dobry','bdb'];
+var PL = {dop:'DOPUSZCZAJĄCY',dost:'DOSTATECZNY',dobry:'DOBRY',bdb:'BARDZO DOBRY'};
+var PC = {dop:'#ef476f',dost:'#ffd166',dobry:'#00e5ff',bdb:'#39d98a'};
+
+// ── STATE ──
+var S = {
+  settings:{
+    month:'2026-04', dniPracujacych:23,
+    progi:{dop:3595,dost:4179,dobry:5000,bdb:6000},
+    progiBrt:{dop:4790,dost:5647,dobry:6506,bdb:8317},
+    stawki:{godzinowa:21.10,urlopowa:35,nocna:5.72,sobota:200}
+  },
+  wpisy:[],
+  activeProg:'dobry'
+};
+var fUruch = 0;
+var fPoz = [{opis:'',stawka:'',ilosc:''}];
+var editId = null;
+
+function persist() {
+  try { localStorage.setItem('akord4', JSON.stringify(S)); } catch(e) {}
+}
+
+function loadState() {
+  try {
+    var raw = localStorage.getItem('akord4');
+    if (raw) {
+      var p = JSON.parse(raw);
+      if (p && p.settings) {
+        S = p;
+        if (!S.settings.progiBrt) {
+          S.settings.progiBrt = {dop:4790,dost:5647,dobry:6506,bdb:8317};
+        }
+      }
+    }
+  } catch(e) {}
+}
+
+// ── DANE KWIECIEŃ ──
+var KWIECIEN = [
+  {data:'2026-04-01',uruch:30, akord:374.40, przP:0.5, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-02',uruch:60, akord:338.656,przP:0.5, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-03',uruch:120,akord:286.402,przP:0.5, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-04',uruch:0,  akord:285.849,przP:0.5, przA:0, dodN:0, dodS:1},
+  {data:'2026-04-07',uruch:30, akord:344.88, przP:0.5, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-08',uruch:0,  akord:355.50, przP:0.5, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-09',uruch:0,  akord:410.382,przP:1.0, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-10',uruch:60, akord:412.392,przP:0.5, przA:0, dodN:0, dodS:0},
+  {data:'2026-04-11',uruch:0,  akord:268.00, przP:0.5, przA:0, dodN:1, dodS:1},
+  {data:'2026-04-13',uruch:60, akord:190.00, przP:3.667,przA:0,dodN:0, dodS:0},
+  {data:'2026-04-14',uruch:0,  akord:447.96, przP:2.667,przA:0,dodN:0, dodS:0},
+  {data:'2026-04-15',uruch:60, akord:312.00, przP:2.667,przA:0,dodN:0, dodS:0},
+  {data:'2026-04-16',uruch:0,  akord:301.686,przP:2.667,przA:0,dodN:0, dodS:0},
+  {data:'2026-04-17',uruch:0,  akord:260.00, przP:4.168,przA:0,dodN:0, dodS:0},
+  {data:'2026-04-20',uruch:0,  akord:424.00, przP:0.5, przA:0, dodN:0, dodS:0}
+];
+
+function buildKwiecien() {
+  var stG = 21.10, stN = 5.72, stS = 200;
+  return KWIECIEN.map(function(k, i) {
+    var lines = [];
+    var total = 0;
+    if (k.akord > 0) { lines.push('Akord: ' + fmt(k.akord) + ' zł'); total += k.akord; }
+    if (k.uruch > 0) { lines.push('Uruchomienie: ' + fmt(k.uruch) + ' zł'); total += k.uruch; }
+    if (k.przP > 0)  { var v=k.przP*stG; lines.push('Przerwa płatna: '+fmt(v)+' zł'); total+=v; }
+    if (k.przA > 0)  { var v=k.przA*stG; lines.push('Awaria płatna: '+fmt(v)+' zł');  total+=v; }
+    if (k.dodN > 0)  { var v=k.dodN*stN; lines.push('Nocny: '+fmt(v)+' zł'); total+=v; }
+    if (k.dodS === 1){ lines.push('Sobota: '+fmt(stS)+' zł'); total+=stS; }
+    return {
+      id: 1743000000000 + i*1000,
+      data: k.data, typ:'A',
+      czas:'8:00',
+      przP: hStr(k.przP), przA: hStr(k.przA),
+      dodN: hStr(k.dodN), dodS: String(k.dodS),
+      uruch: k.uruch,
+      pozycje:[{opis:'Akord',stawka:String(k.akord),ilosc:'1'}],
+      total: Math.round(total*1000)/1000,
+      breakdown: lines
+    };
+  });
+}
+
+function hStr(h) {
+  var hh = Math.floor(h);
+  var mm = Math.round((h - hh)*60);
+  return hh + ':' + (mm<10?'0':'')+mm;
+}
+
+// ── UTILS ──
+function parseH(s) {
+  if (!s) return 0;
+  s = String(s).trim();
+  var p = s.split(':');
+  if (p.length===2) return (parseInt(p[0])||0)+(parseInt(p[1])||0)/60;
+  return parseFloat(s)||0;
+}
+function fmt(n) {
+  return (Math.round(n*100)/100).toFixed(2).replace('.',',');
+}
+function bruttoSum() {
+  return S.wpisy.reduce(function(a,w){return a+(w.total||0);},0);
+}
+function dniP() { return S.wpisy.length; }
+function dniPoz() { return Math.max(0, S.settings.dniPracujacych - dniP()); }
+function nettoWsp(k) {
+  var net = S.settings.progi[k]||0;
+  var brt = S.settings.progiBrt[k]||0;
+  if (brt > 0) return net/brt;
+  return NETTO;
+}
+function celN() { return S.settings.progi[S.activeProg]||0; }
+function celWsp() { return nettoWsp(S.activeProg); }
+
+// ── TABS ──
+function goTab(n) {
+  for (var i=0;i<4;i++) {
+    document.getElementById('t'+i).classList.toggle('active',i===n);
+    document.getElementById('tb'+i).classList.toggle('active',i===n);
+  }
+  if (n===0) renderDash();
+  if (n===2) renderHist();
+  if (n===3) fillSett();
+}
+
+// ── DASHBOARD ──
+function renderDash() {
+  var brt = bruttoSum();
+  var poz = dniPoz();
+  var cel = celN();
+  var wsp = celWsp();
+
+  // netto szacowane przez współczynnik aktywnego progu
+  var net = brt * wsp;
+
+  if (S.settings.month) {
+    var d = new Date(S.settings.month+'-01');
+    document.getElementById('mbadge').textContent =
+      d.toLocaleDateString('pl-PL',{month:'long',year:'numeric'}).toUpperCase();
+  }
+
+  var psr = document.getElementById('pselrow');
+  psr.innerHTML = '';
+  PK.forEach(function(k) {
+    var b = document.createElement('button');
+    b.className = 'pselbtn'+(S.activeProg===k?' active':'');
+    var w = nettoWsp(k);
+    b.innerHTML = PL[k]+'<br><span style="color:var(--accent);font-size:12px">'+fmt(S.settings.progi[k])+' netto</span>';
+    b.onclick = (function(kk){return function(){S.activeProg=kk;persist();renderDash();};})(k);
+    psr.appendChild(b);
+  });
+
+  var grid = document.getElementById('pgrid');
+  grid.innerHTML = '';
+  PK.forEach(function(k) {
+    var tgt  = S.settings.progi[k];
+    var w    = nettoWsp(k);
+    var netK = brt * w;
+    var pct  = tgt>0 ? Math.min(100,netK/tgt*100) : 0;
+    var brak = Math.max(0,tgt-netK);
+    var c = document.createElement('div');
+    c.className = 'pcard'+(S.activeProg===k?' active':'');
+    c.innerHTML = '<div class="plabel">'+PL[k]+'</div>'+
+      '<div class="pvalue" style="color:'+PC[k]+'">'+fmt(tgt)+' zł netto</div>'+
+      '<div class="ptrack"><div class="pfill" style="width:'+pct.toFixed(1)+'%;background:'+PC[k]+'"></div></div>'+
+      '<div class="psub">'+pct.toFixed(1)+'% | brakuje: '+fmt(brak)+' zł netto</div>';
+    c.onclick = (function(kk){return function(){S.activeProg=kk;persist();renderDash();};})(k);
+    grid.appendChild(c);
+  });
+
+  // dniówka liczona przez współczynnik aktywnego progu
+  var brakN = Math.max(0,cel-net);
+  var dN = poz>0 ? brakN/poz : 0;
+  var dB = wsp>0 ? dN/wsp : 0;
+  document.getElementById('damt').textContent = fmt(dB)+' zł brutto';
+  document.getElementById('dsub').textContent = fmt(dN)+' zł netto | '+poz+' dni pozostało';
+  document.getElementById('dcel').textContent = 'cel: '+PL[S.activeProg]+' ('+Math.round(wsp*100)+'%)';
+
+  document.getElementById('svbrt').textContent = fmt(brt)+' zł';
+  var nel = document.getElementById('svnet');
+  nel.textContent = fmt(net)+' zł';
+  nel.className = 'sval '+(net>=cel?'good':'warn');
+  document.getElementById('svdni').textContent = dniP();
+  var sr = dniP()>0 ? brt/dniP() : 0;
+  var sel = document.getElementById('svsrd');
+  sel.textContent = fmt(sr)+' zł';
+  sel.className = 'sval '+(sr>=dB?'good':'warn');
+}
+
+// ── FORMULARZ ──
+function initForm(wpis) {
+  editId = wpis ? wpis.id : null;
+  if (wpis) {
+    document.getElementById('fData').value   = wpis.data||'';
+    document.getElementById('fTyp').value    = wpis.typ||'A';
+    document.getElementById('fCzas').value   = wpis.czas||'';
+    document.getElementById('fPrzP').value   = wpis.przP||'0:00';
+    document.getElementById('fPrzA').value   = wpis.przA||'0:00';
+    document.getElementById('fDodN').value   = wpis.dodN||'0:00';
+    document.getElementById('fDodS').value   = wpis.dodS||'0';
+    fUruch = wpis.uruch||0;
+    fPoz = (wpis.pozycje&&wpis.pozycje.length>0)
+      ? JSON.parse(JSON.stringify(wpis.pozycje))
+      : [{opis:'',stawka:'',ilosc:''}];
+  } else {
+    document.getElementById('fData').value   = new Date().toISOString().split('T')[0];
+    document.getElementById('fTyp').value    = 'A';
+    document.getElementById('fCzas').value   = '';
+    document.getElementById('fPrzP').value   = '0:00';
+    document.getElementById('fPrzA').value   = '0:00';
+    document.getElementById('fDodN').value   = '0:00';
+    document.getElementById('fDodS').value   = '0';
+    fUruch = 0;
+    fPoz = [{opis:'',stawka:'',ilosc:''}];
+  }
+  document.getElementById('fStG').value   = S.settings.stawki.godzinowa;
+  document.getElementById('fStURL').value = S.settings.stawki.urlopowa;
+  document.getElementById('bSave').textContent = editId ? 'ZAKTUALIZUJ WPIS' : 'ZAPISZ WPIS';
+  refreshTyp(); refreshU(); renderPoz(); updatePrev();
+}
+
+function refreshTyp() {
+  var t = document.getElementById('fTyp').value;
+  document.getElementById('sA').style.display   = t==='A'  ?'':'none';
+  document.getElementById('sG').style.display   = t==='G'  ?'':'none';
+  document.getElementById('sURL').style.display = t==='URL'?'':'none';
+}
+
+function setU(v) {
+  fUruch = v;
+  refreshU();
+  updatePrev();
+}
+function refreshU() {
+  ['ub0','ub30','ub60'].forEach(function(id){document.getElementById(id).classList.remove('active');});
+  document.getElementById(fUruch===0?'ub0':fUruch===30?'ub30':'ub60').classList.add('active');
+}
+
+function renderPoz() {
+  var cont = document.getElementById('poz');
+  cont.innerHTML = '';
+  fPoz.forEach(function(p, i) {
+    var sum = (parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
+    var row = document.createElement('div');
+    row.className = 'prow';
+    var iO = document.createElement('input'); iO.className='iopis';   iO.type='text';   iO.placeholder='Opis';   iO.value=p.opis||'';
+    var iS = document.createElement('input'); iS.className='istawka'; iS.type='number'; iS.placeholder='Stawka'; iS.value=p.stawka||''; iS.step='0.01';
+    var iI = document.createElement('input'); iI.className='iil';     iI.type='number'; iI.placeholder='Szt.';   iI.value=p.ilosc||'';
+    var iU = document.createElement('input'); iU.className='isum';    iU.type='text';   iU.readOnly=true;         iU.tabIndex=-1; iU.value=sum>0?fmt(sum)+' zł':'';
+    var bD = document.createElement('button'); bD.className='bdel'; bD.textContent='×';
+    iO.addEventListener('input',function(e){fPoz[i].opis=e.target.value;updatePrev();});
+    iS.addEventListener('input',function(e){
+      fPoz[i].stawka=e.target.value;
+      var s2=(parseFloat(fPoz[i].stawka)||0)*(parseFloat(fPoz[i].ilosc)||0);
+      iU.value=s2>0?fmt(s2)+' zł':''; updatePrev();
+    });
+    iI.addEventListener('input',function(e){
+      fPoz[i].ilosc=e.target.value;
+      var s2=(parseFloat(fPoz[i].stawka)||0)*(parseFloat(fPoz[i].ilosc)||0);
+      iU.value=s2>0?fmt(s2)+' zł':''; updatePrev();
+    });
+    bD.addEventListener('click',function(){
+      fPoz.splice(i,1);
+      if(fPoz.length===0) fPoz=[{opis:'',stawka:'',ilosc:''}];
+      renderPoz(); updatePrev();
+    });
+    row.appendChild(iO); row.appendChild(iS); row.appendChild(iI); row.appendChild(iU); row.appendChild(bD);
+    cont.appendChild(row);
+  });
+}
+
+function calcDay() {
+  var typ  = document.getElementById('fTyp').value;
+  var czas = parseH(document.getElementById('fCzas').value);
+  var przP = parseH(document.getElementById('fPrzP').value);
+  var przA = parseH(document.getElementById('fPrzA').value);
+  var dodN = parseH(document.getElementById('fDodN').value);
+  var dodS = parseInt(document.getElementById('fDodS').value)||0;
+  var stG  = parseFloat(document.getElementById('fStG').value)||S.settings.stawki.godzinowa;
+  var stU  = parseFloat(document.getElementById('fStURL').value)||S.settings.stawki.urlopowa;
+  var stN  = S.settings.stawki.nocna;
+  var stS  = S.settings.stawki.sobota;
+  var total=0, lines=[];
+  if (typ==='A') {
+    var akord=0;
+    fPoz.forEach(function(p){akord+=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);});
+    if(akord>0){lines.push('Akord: '+fmt(akord)+' zł');total+=akord;}
+    if(fUruch>0){lines.push('Uruchomienie: '+fmt(fUruch)+' zł');total+=fUruch;}
+  } else if(typ==='G'){
+    var v=czas*stG; lines.push('Godzinówka: '+fmt(v)+' zł'); total+=v;
+  } else {
+    var v=czas*stU; lines.push('Urlop: '+fmt(v)+' zł'); total+=v;
+  }
+  if(przP>0){var v=przP*stG; lines.push('Przerwa płatna: '+fmt(v)+' zł'); total+=v;}
+  if(przA>0){var v=przA*stG; lines.push('Awaria płatna: '+fmt(v)+' zł');  total+=v;}
+  if(dodN>0){var v=dodN*stN; lines.push('Nocny: '+fmt(v)+' zł'); total+=v;}
+  if(dodS===1){lines.push('Sobota: '+fmt(stS)+' zł'); total+=stS;}
+  return {total:total, lines:lines};
+}
+
+function updatePrev() {
+  var r = calcDay();
+  document.getElementById('rBrt').textContent = fmt(r.total)+' zł';
+  document.getElementById('rNet').textContent = fmt(r.total*NETTO)+' zł';
+  document.getElementById('rBrk').innerHTML   = r.lines.join('<br>');
+}
+
+function saveWpis() {
+  var data = document.getElementById('fData').value;
+  if (!data) { alert('Podaj datę!'); return; }
+  var r = calcDay();
+  var wpis = {
+    id:   editId||Date.now(),
+    data: data,
+    typ:  document.getElementById('fTyp').value,
+    czas: document.getElementById('fCzas').value,
+    przP: document.getElementById('fPrzP').value,
+    przA: document.getElementById('fPrzA').value,
+    dodN: document.getElementById('fDodN').value,
+    dodS: document.getElementById('fDodS').value,
+    uruch: fUruch,
+    pozycje: JSON.parse(JSON.stringify(fPoz)),
+    total: r.total,
+    breakdown: r.lines
+  };
+  S.wpisy = S.wpisy.filter(function(w){return w.id!==wpis.id && w.data!==data;});
+  S.wpisy.push(wpis);
+  S.wpisy.sort(function(a,b){return a.data.localeCompare(b.data);});
+  editId = null;
+  persist();
+  renderDash();
+  goTab(0);
+}
+
+// ── HISTORIA ──
+function renderHist() {
+  var list = document.getElementById('hlist');
+  list.innerHTML = '';
+  if (S.wpisy.length===0) {
+    list.innerHTML = '<div class="empty">Brak wpisów</div>';
+    return;
+  }
+  var rev = S.wpisy.slice().reverse();
+  rev.forEach(function(w) {
+    var dStr = new Date(w.data+'T12:00:00').toLocaleDateString('pl-PL',{weekday:'short',day:'numeric',month:'short'});
+    var pozTxt = (w.pozycje||[]).filter(function(p){return p.opis||p.stawka;}).map(function(p){
+      var s=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
+      return 'P= '+(p.opis||'—')+' × '+(p.ilosc||0)+' szt @ '+(p.stawka||0)+' zł = '+fmt(s)+' zł';
+    }).join('\n');
+    var detTxt = (w.breakdown||[]).join('\n')+(pozTxt?'\n\n'+pozTxt:'');
+
+    var card = document.createElement('div'); card.className='hcard';
+    var top  = document.createElement('div'); top.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:8px;';
+    var info = document.createElement('div'); info.style.cursor='pointer';
+    info.innerHTML = '<div class="hdate">'+dStr+'</div><div class="hmeta">Typ='+w.typ+' | T='+(w.czas||'—')+'</div>';
+    var rgt  = document.createElement('div'); rgt.style.cssText='display:flex;align-items:center;gap:6px;flex-shrink:0;';
+    var amt  = document.createElement('div');
+    amt.innerHTML = '<div class="htotal">'+fmt(w.total)+' zł</div><div class="hnetto">'+fmt(w.total*NETTO)+' netto</div>';
+    var bE   = document.createElement('button'); bE.className='bact e'; bE.textContent='✏️';
+    var bD   = document.createElement('button'); bD.className='bact d'; bD.textContent='🗑';
+    var det  = document.createElement('div'); det.className='hdet'; det.style.display='none'; det.textContent=detTxt;
+
+    info.addEventListener('click',function(){det.style.display=det.style.display==='none'?'block':'none';});
+    bD.addEventListener('click',function(){
+      S.wpisy = S.wpisy.filter(function(x){return x.id!==w.id;});
+      persist(); renderHist(); renderDash();
+    });
+    bE.addEventListener('click',function(){ initForm(w); goTab(1); });
+
+    rgt.appendChild(amt); rgt.appendChild(bE); rgt.appendChild(bD);
+    top.appendChild(info); top.appendChild(rgt);
+    card.appendChild(top); card.appendChild(det);
+    list.appendChild(card);
+  });
+}
+
+// ── USTAWIENIA ──
+function fillSett() {
+  var s=S.settings;
+  document.getElementById('sMonth').value  = s.month||'';
+  document.getElementById('sDni').value    = s.dniPracujacych||'';
+  document.getElementById('pDop').value    = s.progi.dop||'';
+  document.getElementById('pDopB').value   = s.progiBrt.dop||'';
+  document.getElementById('pDost').value   = s.progi.dost||'';
+  document.getElementById('pDostB').value  = s.progiBrt.dost||'';
+  document.getElementById('pDobry').value  = s.progi.dobry||'';
+  document.getElementById('pDobryB').value = s.progiBrt.dobry||'';
+  document.getElementById('pBdb').value    = s.progi.bdb||'';
+  document.getElementById('pBdbB').value   = s.progiBrt.bdb||'';
+  document.getElementById('stG').value     = s.stawki.godzinowa;
+  document.getElementById('stURL').value   = s.stawki.urlopowa;
+  document.getElementById('stN').value     = s.stawki.nocna;
+  document.getElementById('stS').value     = s.stawki.sobota;
+}
+function saveSett() {
+  S.settings.month            = document.getElementById('sMonth').value;
+  S.settings.dniPracujacych   = parseInt(document.getElementById('sDni').value)||22;
+  S.settings.progi.dop        = parseFloat(document.getElementById('pDop').value)||0;
+  S.settings.progiBrt.dop     = parseFloat(document.getElementById('pDopB').value)||0;
+  S.settings.progi.dost       = parseFloat(document.getElementById('pDost').value)||0;
+  S.settings.progiBrt.dost    = parseFloat(document.getElementById('pDostB').value)||0;
+  S.settings.progi.dobry      = parseFloat(document.getElementById('pDobry').value)||0;
+  S.settings.progiBrt.dobry   = parseFloat(document.getElementById('pDobryB').value)||0;
+  S.settings.progi.bdb        = parseFloat(document.getElementById('pBdb').value)||0;
+  S.settings.progiBrt.bdb     = parseFloat(document.getElementById('pBdbB').value)||0;
+  S.settings.stawki.godzinowa = parseFloat(document.getElementById('stG').value)||21.10;
+  S.settings.stawki.urlopowa  = parseFloat(document.getElementById('stURL').value)||35;
+  S.settings.stawki.nocna     = parseFloat(document.getElementById('stN').value)||5.72;
+  S.settings.stawki.sobota    = parseFloat(document.getElementById('stS').value)||200;
+  persist(); renderDash(); goTab(0);
+}
+function resetAll() {
+  try { localStorage.removeItem('akord4'); } catch(e) {}
+  location.reload();
+}
+
+// ── LIVE LISTENERS ──
+document.getElementById('fTyp').addEventListener('change',function(){refreshTyp();updatePrev();});
+['fCzas','fPrzP','fPrzA','fDodN','fStG','fStURL'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',updatePrev);
+});
+document.getElementById('fDodS').addEventListener('change',updatePrev);
+document.getElementById('bSave').addEventListener('click',saveWpis);
+document.getElementById('bAddPoz').addEventListener('click',function(){
+  fPoz.push({opis:'',stawka:'',ilosc:''});
+  renderPoz();
+});
+
+// ── START ──
+loadState();
+if (S.wpisy.length === 0) {
+  S.wpisy = buildKwiecien();
+  persist();
+}
+renderDash();
+initForm();
+fillSett();
+</script>
+</body>
+</html>
