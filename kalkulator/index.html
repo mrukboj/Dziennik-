@@ -4,19 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kalkulator Akordowy</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 :root {
   --bg:#0f1117; --panel:#161b27; --border:#252d40;
   --accent:#00e5ff; --accent2:#ff6b35; --green:#39d98a;
   --yellow:#ffd166; --red:#ef476f; --text:#e2e8f0; --muted:#64748b;
-  --mono:'Share Tech Mono',monospace; --body:'Barlow',sans-serif;
+  --mono:'Share Tech Mono','Courier New',monospace; --body:'Barlow',Arial,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--body);min-height:100vh;}
 header{background:var(--panel);border-bottom:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
 .logo{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:2px;}
-.mbadge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);padding:4px 10px;border-radius:20px;border:1px solid var(--border);}
+.mbadge{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);padding:4px 10px;border-radius:20px;border:1px solid var(--border);cursor:pointer;}
+.mbadge:hover{border-color:var(--accent);color:var(--accent);}
 .app{max-width:900px;margin:0 auto;padding:20px 16px 80px;}
 .stitle{font-family:var(--mono);font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
 .stitle::after{content:'';flex:1;height:1px;background:var(--border);}
@@ -24,7 +25,6 @@ header{background:var(--panel);border-bottom:1px solid var(--border);padding:16p
 .tbtn{flex:1;background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11px;padding:8px;border-radius:6px;cursor:pointer;text-transform:uppercase;}
 .tbtn.active{background:var(--accent);color:#000;font-weight:700;}
 .tc{display:none;} .tc.active{display:block;}
-/* dashboard */
 .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;}
 @media(max-width:600px){.pgrid{grid-template-columns:1fr;}}
 .pcard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;cursor:pointer;}
@@ -49,7 +49,6 @@ header{background:var(--panel);border-bottom:1px solid var(--border);padding:16p
 .pselrow{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
 .pselbtn{flex:1;min-width:80px;background:var(--bg);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:10px;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:center;}
 .pselbtn.active{border-color:var(--accent);color:var(--accent);}
-/* form */
 .fpanel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px;}
 .frow{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
 .fg{display:flex;flex-direction:column;gap:4px;flex:1;min-width:100px;}
@@ -74,8 +73,31 @@ header{background:var(--panel);border-bottom:1px solid var(--border);padding:16p
 .rnet{font-family:var(--mono);font-size:15px;color:var(--yellow);margin-top:5px;}
 .rbrk{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.8;}
 .bsub{width:100%;background:var(--accent);color:#000;border:none;padding:12px;border-radius:8px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:2px;cursor:pointer;text-transform:uppercase;}
-/* historia */
-.hcard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:8px;}
+
+/* HISTORIA - miesiące */
+.month-block{margin-bottom:28px;}
+.month-header{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;
+  padding:12px 16px;margin-bottom:8px;
+  display:flex;justify-content:space-between;align-items:center;
+  cursor:pointer;
+}
+.month-header:hover{border-color:var(--accent);}
+.mh-name{font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:2px;}
+.mh-stats{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;}
+.mh-brt{font-size:14px;color:var(--green);font-weight:700;}
+.month-entries{display:none;}
+.month-entries.open{display:block;}
+.month-summary{
+  background:linear-gradient(135deg,#0d2137,#0a1a2e);
+  border:1px solid var(--border);border-radius:6px;
+  padding:10px 14px;margin-bottom:6px;
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  display:flex;gap:16px;flex-wrap:wrap;
+}
+.ms-item span{color:var(--accent);}
+
+.hcard{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:6px;}
 .hdate{font-family:var(--mono);font-size:12px;color:var(--accent);}
 .hmeta{font-size:11px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
 .htotal{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green);}
@@ -84,18 +106,25 @@ header{background:var(--panel);border-bottom:1px solid var(--border);padding:16p
 .bact{background:none;cursor:pointer;font-size:15px;width:34px;height:34px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
 .bact.e{border:1px solid var(--accent);}
 .bact.d{border:1px solid var(--red);}
-/* settings */
+
 .spanel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:24px;}
 .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
 @media(max-width:500px){.sgrid{grid-template-columns:1fr;}}
 .empty{text-align:center;padding:30px;color:var(--muted);font-family:var(--mono);font-size:12px;}
+
+/* MONTH SWITCHER */
+.month-switcher{display:flex;align-items:center;gap:8px;margin-bottom:20px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;}
+.ms-btn{background:none;border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:14px;width:32px;height:32px;border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.ms-btn:hover{border-color:var(--accent);color:var(--accent);}
+.ms-cur{flex:1;text-align:center;font-family:var(--mono);font-size:13px;color:var(--accent);letter-spacing:2px;}
+
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 </style>
 </head>
 <body>
 <header>
   <div class="logo">▮ AKORD.CALC</div>
-  <div class="mbadge" id="mbadge">—</div>
+  <div class="mbadge" id="mbadge" onclick="goTab(3)" title="Kliknij → Ustawienia">—</div>
 </header>
 <div class="app">
   <div class="tabs">
@@ -107,6 +136,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
   <!-- DASHBOARD -->
   <div id="t0" class="tc active">
+    <div class="month-switcher">
+      <button class="ms-btn" onclick="prevMonth()">◀</button>
+      <div class="ms-cur" id="ms-cur">—</div>
+      <button class="ms-btn" onclick="nextMonth()">▶</button>
+    </div>
     <div class="stitle">Cel aktywny</div>
     <div class="pselrow" id="pselrow"></div>
     <div class="stitle">Postęp do progów</div>
@@ -190,17 +224,20 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
   <!-- HISTORIA -->
   <div id="t2" class="tc">
-    <div class="stitle">Wszystkie wpisy</div>
+    <div class="stitle">Historia — wszystkie miesiące</div>
     <div id="hlist"></div>
   </div>
 
   <!-- USTAWIENIA -->
   <div id="t3" class="tc">
     <div class="spanel">
-      <div class="stitle">Miesiąc i dni</div>
+      <div class="stitle">Aktywny miesiąc</div>
       <div class="sgrid">
         <div class="fg"><label>Miesiąc / rok</label><input type="month" id="sMonth"></div>
         <div class="fg"><label>Dni pracujących</label><input type="number" id="sDni"></div>
+      </div>
+      <div style="margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--muted);">
+        ℹ Zmiana miesiąca nie usuwa danych — każdy miesiąc ma osobne wpisy i ustawienia dni.
       </div>
       <div class="stitle" style="margin-top:16px">Progi netto / brutto zł</div>
       <div class="sgrid">
@@ -224,7 +261,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
     </div>
     <div class="spanel">
       <div class="stitle" style="color:var(--red)">Reset</div>
-      <button class="bsub" style="background:var(--red);color:#fff" onclick="resetAll()">WYCZYŚĆ WSZYSTKIE DANE</button>
+      <button class="bsub" style="background:var(--red);color:#fff;margin-bottom:8px" onclick="resetMonth()">WYCZYŚĆ BIEŻĄCY MIESIĄC</button>
+      <button class="bsub" style="background:#4a0a0a;color:var(--red);margin-top:8px;border:1px solid var(--red)" onclick="resetAll()">WYCZYŚĆ WSZYSTKIE DANE</button>
     </div>
   </div>
 </div>
@@ -236,20 +274,44 @@ var PL = {dop:'DOPUSZCZAJĄCY',dost:'DOSTATECZNY',dobry:'DOBRY',bdb:'BARDZO DOBR
 var PC = {dop:'#ef476f',dost:'#ffd166',dobry:'#00e5ff',bdb:'#39d98a'};
 
 // ── STATE ──
+// S.miesiac['2026-04'] = { dni:23, wpisy:[], activeProg:'dobry' }
+// S.settings = { progi, progiBrt, stawki } — globalne
+// S.currentMonth = '2026-04'
 var S = {
-  settings:{
-    month:'2026-04', dniPracujacych:23,
-    progi:{dop:3595,dost:4179,dobry:5000,bdb:6000},
-    progiBrt:{dop:4790,dost:5647,dobry:6506,bdb:8317},
-    stawki:{godzinowa:21.10,urlopowa:35,nocna:5.72,sobota:200}
+  currentMonth: '',
+  settings: {
+    progi:    {dop:3595, dost:4179, dobry:5000, bdb:6000},
+    progiBrt: {dop:4790, dost:5647, dobry:6506, bdb:8317},
+    stawki:   {godzinowa:21.10, urlopowa:35, nocna:5.72, sobota:200}
   },
-  wpisy:[],
-  activeProg:'dobry'
+  miesiac: {}
 };
+
 var fUruch = 0;
 var fPoz = [{opis:'',stawka:'',ilosc:''}];
 var editId = null;
 
+// ── MIESIAC HELPERS ──
+function curM() { return S.currentMonth; }
+
+function getMiesiac(m) {
+  if (!S.miesiac[m]) {
+    S.miesiac[m] = { dni: 22, wpisy: [], activeProg: 'dobry' };
+  }
+  return S.miesiac[m];
+}
+
+function curWpisy() { return getMiesiac(curM()).wpisy; }
+function curDni()   { return getMiesiac(curM()).dni; }
+function curProg()  { return getMiesiac(curM()).activeProg || 'dobry'; }
+
+function setActiveProg(k) {
+  getMiesiac(curM()).activeProg = k;
+  persist();
+  renderDash();
+}
+
+// ── PERSIST ──
 function persist() {
   try { localStorage.setItem('akord4', JSON.stringify(S)); } catch(e) {}
 }
@@ -259,411 +321,448 @@ function loadState() {
     var raw = localStorage.getItem('akord4');
     if (raw) {
       var p = JSON.parse(raw);
-      if (p && p.settings) {
+      if (p && p.miesiac) {
+        // nowy format
         S = p;
-        if (!S.settings.progiBrt) {
-          S.settings.progiBrt = {dop:4790,dost:5647,dobry:6506,bdb:8317};
-        }
+        return;
+      }
+      if (p && p.settings) {
+        // stary format — migracja automatyczna
+        S.settings = {
+          progi:    p.settings.progi    || S.settings.progi,
+          progiBrt: p.settings.progiBrt || S.settings.progiBrt,
+          stawki:   p.settings.stawki   || S.settings.stawki
+        };
+        var m = p.settings.month || '2026-04';
+        S.miesiac[m] = {
+          dni: p.settings.dniPracujacych || 22,
+          wpisy: p.wpisy || [],
+          activeProg: p.activeProg || 'dobry'
+        };
+        S.currentMonth = m;
+        persist();
+        return;
       }
     }
   } catch(e) {}
 }
 
-// ── DANE KWIECIEŃ ──
-var KWIECIEN = [
-  {data:'2026-04-01',uruch:30, akord:374.40, przP:0.5, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-02',uruch:60, akord:338.656,przP:0.5, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-03',uruch:120,akord:286.402,przP:0.5, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-04',uruch:0,  akord:285.849,przP:0.5, przA:0, dodN:0, dodS:1},
-  {data:'2026-04-07',uruch:30, akord:344.88, przP:0.5, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-08',uruch:0,  akord:355.50, przP:0.5, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-09',uruch:0,  akord:410.382,przP:1.0, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-10',uruch:60, akord:412.392,przP:0.5, przA:0, dodN:0, dodS:0},
-  {data:'2026-04-11',uruch:0,  akord:268.00, przP:0.5, przA:0, dodN:1, dodS:1},
-  {data:'2026-04-13',uruch:60, akord:190.00, przP:3.667,przA:0,dodN:0, dodS:0},
-  {data:'2026-04-14',uruch:0,  akord:447.96, przP:2.667,przA:0,dodN:0, dodS:0},
-  {data:'2026-04-15',uruch:60, akord:312.00, przP:2.667,przA:0,dodN:0, dodS:0},
-  {data:'2026-04-16',uruch:0,  akord:301.686,przP:2.667,przA:0,dodN:0, dodS:0},
-  {data:'2026-04-17',uruch:0,  akord:260.00, przP:4.168,przA:0,dodN:0, dodS:0},
-  {data:'2026-04-20',uruch:0,  akord:424.00, przP:0.5, przA:0, dodN:0, dodS:0}
+function todayMonth() {
+  return new Date().toISOString().slice(0,7);
+}
+
+// ── KWIECIEŃ DATA ──
+var KWIECIEN_RAW = [
+  {data:'2026-04-01',uruch:30, akord:374.40,  przP:0.5,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-02',uruch:60, akord:338.656, przP:0.5,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-03',uruch:120,akord:286.402, przP:0.5,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-04',uruch:0,  akord:285.849, przP:0.5,  przA:0,dodN:0,dodS:1},
+  {data:'2026-04-07',uruch:30, akord:344.88,  przP:0.5,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-08',uruch:0,  akord:355.50,  przP:0.5,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-09',uruch:0,  akord:410.382, przP:1.0,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-10',uruch:60, akord:412.392, przP:0.5,  przA:0,dodN:0,dodS:0},
+  {data:'2026-04-11',uruch:0,  akord:268.00,  przP:0.5,  przA:0,dodN:1,dodS:1},
+  {data:'2026-04-13',uruch:60, akord:190.00,  przP:3.667,przA:0,dodN:0,dodS:0},
+  {data:'2026-04-14',uruch:0,  akord:447.96,  przP:2.667,przA:0,dodN:0,dodS:0},
+  {data:'2026-04-15',uruch:60, akord:312.00,  przP:2.667,przA:0,dodN:0,dodS:0},
+  {data:'2026-04-16',uruch:0,  akord:301.686, przP:2.667,przA:0,dodN:0,dodS:0},
+  {data:'2026-04-17',uruch:0,  akord:260.00,  przP:4.168,przA:0,dodN:0,dodS:0},
+  {data:'2026-04-20',uruch:0,  akord:424.00,  przP:0.5,  przA:0,dodN:0,dodS:0}
 ];
 
 function buildKwiecien() {
-  var stG = 21.10, stN = 5.72, stS = 200;
-  return KWIECIEN.map(function(k, i) {
-    var lines = [];
-    var total = 0;
-    if (k.akord > 0) { lines.push('Akord: ' + fmt(k.akord) + ' zł'); total += k.akord; }
-    if (k.uruch > 0) { lines.push('Uruchomienie: ' + fmt(k.uruch) + ' zł'); total += k.uruch; }
-    if (k.przP > 0)  { var v=k.przP*stG; lines.push('Przerwa płatna: '+fmt(v)+' zł'); total+=v; }
-    if (k.przA > 0)  { var v=k.przA*stG; lines.push('Awaria płatna: '+fmt(v)+' zł');  total+=v; }
-    if (k.dodN > 0)  { var v=k.dodN*stN; lines.push('Nocny: '+fmt(v)+' zł'); total+=v; }
-    if (k.dodS === 1){ lines.push('Sobota: '+fmt(stS)+' zł'); total+=stS; }
+  var stG=21.10,stN=5.72,stS=200;
+  return KWIECIEN_RAW.map(function(k,i){
+    var lines=[],total=0;
+    if(k.akord>0){lines.push('Akord: '+fmt(k.akord)+' zł');total+=k.akord;}
+    if(k.uruch>0){lines.push('Uruchomienie: '+fmt(k.uruch)+' zł');total+=k.uruch;}
+    if(k.przP>0){var v=k.przP*stG;lines.push('Przerwa płatna: '+fmt(v)+' zł');total+=v;}
+    if(k.przA>0){var v=k.przA*stG;lines.push('Awaria: '+fmt(v)+' zł');total+=v;}
+    if(k.dodN>0){var v=k.dodN*stN;lines.push('Nocny: '+fmt(v)+' zł');total+=v;}
+    if(k.dodS===1){lines.push('Sobota: '+fmt(stS)+' zł');total+=stS;}
     return {
-      id: 1743000000000 + i*1000,
-      data: k.data, typ:'A',
-      czas:'8:00',
-      przP: hStr(k.przP), przA: hStr(k.przA),
-      dodN: hStr(k.dodN), dodS: String(k.dodS),
-      uruch: k.uruch,
-      pozycje:[{opis:'Akord',stawka:String(k.akord),ilosc:'1'}],
-      total: Math.round(total*1000)/1000,
-      breakdown: lines
+      id:1743000000000+i*1000, data:k.data, typ:'A', czas:'8:00',
+      przP:hStr(k.przP),przA:hStr(k.przA),dodN:hStr(k.dodN),dodS:String(k.dodS),
+      uruch:k.uruch, pozycje:[{opis:'Akord',stawka:String(k.akord),ilosc:'1'}],
+      total:Math.round(total*1000)/1000, breakdown:lines
     };
   });
 }
 
-function hStr(h) {
-  var hh = Math.floor(h);
-  var mm = Math.round((h - hh)*60);
-  return hh + ':' + (mm<10?'0':'')+mm;
-}
+function hStr(h){var hh=Math.floor(h),mm=Math.round((h-hh)*60);return hh+':'+(mm<10?'0':'')+mm;}
 
 // ── UTILS ──
-function parseH(s) {
-  if (!s) return 0;
-  s = String(s).trim();
-  var p = s.split(':');
-  if (p.length===2) return (parseInt(p[0])||0)+(parseInt(p[1])||0)/60;
-  return parseFloat(s)||0;
+function parseH(s){if(!s)return 0;s=String(s).trim();var p=s.split(':');if(p.length===2)return(parseInt(p[0])||0)+(parseInt(p[1])||0)/60;return parseFloat(s)||0;}
+function fmt(n){return(Math.round(n*100)/100).toFixed(2).replace('.',',');}
+function bruttoSum(m){return getMiesiac(m||curM()).wpisy.reduce(function(a,w){return a+(w.total||0);},0);}
+function dniP(m){return getMiesiac(m||curM()).wpisy.length;}
+function dniPoz(){return Math.max(0,curDni()-dniP());}
+function nettoWsp(k){var net=S.settings.progi[k]||0,brt=S.settings.progiBrt[k]||0;return brt>0?net/brt:NETTO;}
+function celN(){return S.settings.progi[curProg()]||0;}
+function celWsp(){return nettoWsp(curProg());}
+
+function monthLabel(m){
+  if(!m)return'—';
+  var d=new Date(m+'-01');
+  return d.toLocaleDateString('pl-PL',{month:'long',year:'numeric'}).toUpperCase();
 }
-function fmt(n) {
-  return (Math.round(n*100)/100).toFixed(2).replace('.',',');
+
+// ── MONTH NAV ──
+function prevMonth(){
+  var d=new Date(curM()+'-01');
+  d.setMonth(d.getMonth()-1);
+  S.currentMonth=d.toISOString().slice(0,7);
+  persist();renderDash();updateBadge();
 }
-function bruttoSum() {
-  return S.wpisy.reduce(function(a,w){return a+(w.total||0);},0);
+function nextMonth(){
+  var d=new Date(curM()+'-01');
+  d.setMonth(d.getMonth()+1);
+  S.currentMonth=d.toISOString().slice(0,7);
+  persist();renderDash();updateBadge();
 }
-function dniP() { return S.wpisy.length; }
-function dniPoz() { return Math.max(0, S.settings.dniPracujacych - dniP()); }
-function nettoWsp(k) {
-  var net = S.settings.progi[k]||0;
-  var brt = S.settings.progiBrt[k]||0;
-  if (brt > 0) return net/brt;
-  return NETTO;
+function updateBadge(){
+  document.getElementById('mbadge').textContent=monthLabel(curM());
+  document.getElementById('ms-cur').textContent=monthLabel(curM());
 }
-function celN() { return S.settings.progi[S.activeProg]||0; }
-function celWsp() { return nettoWsp(S.activeProg); }
 
 // ── TABS ──
-function goTab(n) {
-  for (var i=0;i<4;i++) {
+function goTab(n){
+  for(var i=0;i<4;i++){
     document.getElementById('t'+i).classList.toggle('active',i===n);
     document.getElementById('tb'+i).classList.toggle('active',i===n);
   }
-  if (n===0) renderDash();
-  if (n===2) renderHist();
-  if (n===3) fillSett();
+  if(n===0)renderDash();
+  if(n===2)renderHist();
+  if(n===3)fillSett();
 }
 
 // ── DASHBOARD ──
-function renderDash() {
-  var brt = bruttoSum();
-  var poz = dniPoz();
-  var cel = celN();
-  var wsp = celWsp();
+function renderDash(){
+  var m=curM();
+  var brt=bruttoSum(m);
+  var poz=dniPoz();
+  var cel=celN();
+  var wsp=celWsp();
+  var net=brt*wsp;
 
-  // netto szacowane przez współczynnik aktywnego progu
-  var net = brt * wsp;
+  updateBadge();
 
-  if (S.settings.month) {
-    var d = new Date(S.settings.month+'-01');
-    document.getElementById('mbadge').textContent =
-      d.toLocaleDateString('pl-PL',{month:'long',year:'numeric'}).toUpperCase();
-  }
-
-  var psr = document.getElementById('pselrow');
-  psr.innerHTML = '';
-  PK.forEach(function(k) {
-    var b = document.createElement('button');
-    b.className = 'pselbtn'+(S.activeProg===k?' active':'');
-    var w = nettoWsp(k);
-    b.innerHTML = PL[k]+'<br><span style="color:var(--accent);font-size:12px">'+fmt(S.settings.progi[k])+' netto</span>';
-    b.onclick = (function(kk){return function(){S.activeProg=kk;persist();renderDash();};})(k);
+  var psr=document.getElementById('pselrow');
+  psr.innerHTML='';
+  PK.forEach(function(k){
+    var b=document.createElement('button');
+    b.className='pselbtn'+(curProg()===k?' active':'');
+    b.innerHTML=PL[k]+'<br><span style="color:var(--accent);font-size:12px">'+fmt(S.settings.progi[k])+' netto</span>';
+    b.onclick=(function(kk){return function(){setActiveProg(kk);};})(k);
     psr.appendChild(b);
   });
 
-  var grid = document.getElementById('pgrid');
-  grid.innerHTML = '';
-  PK.forEach(function(k) {
-    var tgt  = S.settings.progi[k];
-    var w    = nettoWsp(k);
-    var netK = brt * w;
-    var pct  = tgt>0 ? Math.min(100,netK/tgt*100) : 0;
-    var brak = Math.max(0,tgt-netK);
-    var c = document.createElement('div');
-    c.className = 'pcard'+(S.activeProg===k?' active':'');
-    c.innerHTML = '<div class="plabel">'+PL[k]+'</div>'+
+  var grid=document.getElementById('pgrid');
+  grid.innerHTML='';
+  PK.forEach(function(k){
+    var tgt=S.settings.progi[k],w=nettoWsp(k),netK=brt*w;
+    var pct=tgt>0?Math.min(100,netK/tgt*100):0,brak=Math.max(0,tgt-netK);
+    var c=document.createElement('div');
+    c.className='pcard'+(curProg()===k?' active':'');
+    c.innerHTML='<div class="plabel">'+PL[k]+'</div>'+
       '<div class="pvalue" style="color:'+PC[k]+'">'+fmt(tgt)+' zł netto</div>'+
       '<div class="ptrack"><div class="pfill" style="width:'+pct.toFixed(1)+'%;background:'+PC[k]+'"></div></div>'+
       '<div class="psub">'+pct.toFixed(1)+'% | brakuje: '+fmt(brak)+' zł netto</div>';
-    c.onclick = (function(kk){return function(){S.activeProg=kk;persist();renderDash();};})(k);
+    c.onclick=(function(kk){return function(){setActiveProg(kk);};})(k);
     grid.appendChild(c);
   });
 
-  // dniówka liczona przez współczynnik aktywnego progu
-  var brakN = Math.max(0,cel-net);
-  var dN = poz>0 ? brakN/poz : 0;
-  var dB = wsp>0 ? dN/wsp : 0;
-  document.getElementById('damt').textContent = fmt(dB)+' zł brutto';
-  document.getElementById('dsub').textContent = fmt(dN)+' zł netto | '+poz+' dni pozostało';
-  document.getElementById('dcel').textContent = 'cel: '+PL[S.activeProg]+' ('+Math.round(wsp*100)+'%)';
-
-  document.getElementById('svbrt').textContent = fmt(brt)+' zł';
-  var nel = document.getElementById('svnet');
-  nel.textContent = fmt(net)+' zł';
-  nel.className = 'sval '+(net>=cel?'good':'warn');
-  document.getElementById('svdni').textContent = dniP();
-  var sr = dniP()>0 ? brt/dniP() : 0;
-  var sel = document.getElementById('svsrd');
-  sel.textContent = fmt(sr)+' zł';
-  sel.className = 'sval '+(sr>=dB?'good':'warn');
+  var brakN=Math.max(0,cel-net);
+  var dN=poz>0?brakN/poz:0,dB=wsp>0?dN/wsp:0;
+  document.getElementById('damt').textContent=fmt(dB)+' zł brutto';
+  document.getElementById('dsub').textContent=fmt(dN)+' zł netto | '+poz+' dni pozostało';
+  document.getElementById('dcel').textContent='cel: '+PL[curProg()]+' ('+Math.round(wsp*100)+'%)';
+  document.getElementById('svbrt').textContent=fmt(brt)+' zł';
+  var nel=document.getElementById('svnet');
+  nel.textContent=fmt(net)+' zł';
+  nel.className='sval '+(net>=cel?'good':'warn');
+  document.getElementById('svdni').textContent=dniP(m);
+  var sr=dniP(m)>0?brt/dniP(m):0;
+  var sel=document.getElementById('svsrd');
+  sel.textContent=fmt(sr)+' zł';
+  sel.className='sval '+(sr>=dB?'good':'warn');
 }
 
 // ── FORMULARZ ──
-function initForm(wpis) {
-  editId = wpis ? wpis.id : null;
-  if (wpis) {
-    document.getElementById('fData').value   = wpis.data||'';
-    document.getElementById('fTyp').value    = wpis.typ||'A';
-    document.getElementById('fCzas').value   = wpis.czas||'';
-    document.getElementById('fPrzP').value   = wpis.przP||'0:00';
-    document.getElementById('fPrzA').value   = wpis.przA||'0:00';
-    document.getElementById('fDodN').value   = wpis.dodN||'0:00';
-    document.getElementById('fDodS').value   = wpis.dodS||'0';
-    fUruch = wpis.uruch||0;
-    fPoz = (wpis.pozycje&&wpis.pozycje.length>0)
-      ? JSON.parse(JSON.stringify(wpis.pozycje))
-      : [{opis:'',stawka:'',ilosc:''}];
+function initForm(wpis){
+  editId=wpis?wpis.id:null;
+  if(wpis){
+    document.getElementById('fData').value=wpis.data||'';
+    document.getElementById('fTyp').value=wpis.typ||'A';
+    document.getElementById('fCzas').value=wpis.czas||'';
+    document.getElementById('fPrzP').value=wpis.przP||'0:00';
+    document.getElementById('fPrzA').value=wpis.przA||'0:00';
+    document.getElementById('fDodN').value=wpis.dodN||'0:00';
+    document.getElementById('fDodS').value=wpis.dodS||'0';
+    fUruch=wpis.uruch||0;
+    fPoz=wpis.pozycje&&wpis.pozycje.length>0?JSON.parse(JSON.stringify(wpis.pozycje)):[{opis:'',stawka:'',ilosc:''}];
   } else {
-    document.getElementById('fData').value   = new Date().toISOString().split('T')[0];
-    document.getElementById('fTyp').value    = 'A';
-    document.getElementById('fCzas').value   = '';
-    document.getElementById('fPrzP').value   = '0:00';
-    document.getElementById('fPrzA').value   = '0:00';
-    document.getElementById('fDodN').value   = '0:00';
-    document.getElementById('fDodS').value   = '0';
-    fUruch = 0;
-    fPoz = [{opis:'',stawka:'',ilosc:''}];
+    // domyślna data = dziś ale w aktywnym miesiącu
+    var today=new Date().toISOString().split('T')[0];
+    var m=curM();
+    document.getElementById('fData').value=today.slice(0,7)===m?today:m+'-01';
+    document.getElementById('fTyp').value='A';
+    document.getElementById('fCzas').value='';
+    document.getElementById('fPrzP').value='0:00';
+    document.getElementById('fPrzA').value='0:00';
+    document.getElementById('fDodN').value='0:00';
+    document.getElementById('fDodS').value='0';
+    fUruch=0;
+    fPoz=[{opis:'',stawka:'',ilosc:''}];
   }
-  document.getElementById('fStG').value   = S.settings.stawki.godzinowa;
-  document.getElementById('fStURL').value = S.settings.stawki.urlopowa;
-  document.getElementById('bSave').textContent = editId ? 'ZAKTUALIZUJ WPIS' : 'ZAPISZ WPIS';
-  refreshTyp(); refreshU(); renderPoz(); updatePrev();
+  document.getElementById('fStG').value=S.settings.stawki.godzinowa;
+  document.getElementById('fStURL').value=S.settings.stawki.urlopowa;
+  document.getElementById('bSave').textContent=editId?'ZAKTUALIZUJ WPIS':'ZAPISZ WPIS';
+  refreshTyp();refreshU();renderPoz();updatePrev();
 }
 
-function refreshTyp() {
-  var t = document.getElementById('fTyp').value;
-  document.getElementById('sA').style.display   = t==='A'  ?'':'none';
-  document.getElementById('sG').style.display   = t==='G'  ?'':'none';
-  document.getElementById('sURL').style.display = t==='URL'?'':'none';
+function refreshTyp(){
+  var t=document.getElementById('fTyp').value;
+  document.getElementById('sA').style.display=t==='A'?'':'none';
+  document.getElementById('sG').style.display=t==='G'?'':'none';
+  document.getElementById('sURL').style.display=t==='URL'?'':'none';
 }
 
-function setU(v) {
-  fUruch = v;
-  refreshU();
-  updatePrev();
-}
-function refreshU() {
+function setU(v){fUruch=v;refreshU();updatePrev();}
+function refreshU(){
   ['ub0','ub30','ub60'].forEach(function(id){document.getElementById(id).classList.remove('active');});
   document.getElementById(fUruch===0?'ub0':fUruch===30?'ub30':'ub60').classList.add('active');
 }
 
-function renderPoz() {
-  var cont = document.getElementById('poz');
-  cont.innerHTML = '';
-  fPoz.forEach(function(p, i) {
-    var sum = (parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
-    var row = document.createElement('div');
-    row.className = 'prow';
-    var iO = document.createElement('input'); iO.className='iopis';   iO.type='text';   iO.placeholder='Opis';   iO.value=p.opis||'';
-    var iS = document.createElement('input'); iS.className='istawka'; iS.type='number'; iS.placeholder='Stawka'; iS.value=p.stawka||''; iS.step='0.01';
-    var iI = document.createElement('input'); iI.className='iil';     iI.type='number'; iI.placeholder='Szt.';   iI.value=p.ilosc||'';
-    var iU = document.createElement('input'); iU.className='isum';    iU.type='text';   iU.readOnly=true;         iU.tabIndex=-1; iU.value=sum>0?fmt(sum)+' zł':'';
-    var bD = document.createElement('button'); bD.className='bdel'; bD.textContent='×';
+function renderPoz(){
+  var cont=document.getElementById('poz');
+  cont.innerHTML='';
+  fPoz.forEach(function(p,i){
+    var sum=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
+    var row=document.createElement('div');row.className='prow';
+    var iO=document.createElement('input');iO.className='iopis';iO.type='text';iO.placeholder='Opis';iO.value=p.opis||'';
+    var iS=document.createElement('input');iS.className='istawka';iS.type='number';iS.placeholder='Stawka';iS.value=p.stawka||'';iS.step='0.01';
+    var iI=document.createElement('input');iI.className='iil';iI.type='number';iI.placeholder='Szt.';iI.value=p.ilosc||'';
+    var iU=document.createElement('input');iU.className='isum';iU.type='text';iU.readOnly=true;iU.tabIndex=-1;iU.value=sum>0?fmt(sum)+' zł':'';
+    var bD=document.createElement('button');bD.className='bdel';bD.textContent='×';
     iO.addEventListener('input',function(e){fPoz[i].opis=e.target.value;updatePrev();});
-    iS.addEventListener('input',function(e){
-      fPoz[i].stawka=e.target.value;
-      var s2=(parseFloat(fPoz[i].stawka)||0)*(parseFloat(fPoz[i].ilosc)||0);
-      iU.value=s2>0?fmt(s2)+' zł':''; updatePrev();
-    });
-    iI.addEventListener('input',function(e){
-      fPoz[i].ilosc=e.target.value;
-      var s2=(parseFloat(fPoz[i].stawka)||0)*(parseFloat(fPoz[i].ilosc)||0);
-      iU.value=s2>0?fmt(s2)+' zł':''; updatePrev();
-    });
-    bD.addEventListener('click',function(){
-      fPoz.splice(i,1);
-      if(fPoz.length===0) fPoz=[{opis:'',stawka:'',ilosc:''}];
-      renderPoz(); updatePrev();
-    });
-    row.appendChild(iO); row.appendChild(iS); row.appendChild(iI); row.appendChild(iU); row.appendChild(bD);
+    iS.addEventListener('input',function(e){fPoz[i].stawka=e.target.value;var s2=(parseFloat(fPoz[i].stawka)||0)*(parseFloat(fPoz[i].ilosc)||0);iU.value=s2>0?fmt(s2)+' zł':'';updatePrev();});
+    iI.addEventListener('input',function(e){fPoz[i].ilosc=e.target.value;var s2=(parseFloat(fPoz[i].stawka)||0)*(parseFloat(fPoz[i].ilosc)||0);iU.value=s2>0?fmt(s2)+' zł':'';updatePrev();});
+    bD.addEventListener('click',function(){fPoz.splice(i,1);if(fPoz.length===0)fPoz=[{opis:'',stawka:'',ilosc:''}];renderPoz();updatePrev();});
+    row.appendChild(iO);row.appendChild(iS);row.appendChild(iI);row.appendChild(iU);row.appendChild(bD);
     cont.appendChild(row);
   });
 }
 
-function calcDay() {
-  var typ  = document.getElementById('fTyp').value;
-  var czas = parseH(document.getElementById('fCzas').value);
-  var przP = parseH(document.getElementById('fPrzP').value);
-  var przA = parseH(document.getElementById('fPrzA').value);
-  var dodN = parseH(document.getElementById('fDodN').value);
-  var dodS = parseInt(document.getElementById('fDodS').value)||0;
-  var stG  = parseFloat(document.getElementById('fStG').value)||S.settings.stawki.godzinowa;
-  var stU  = parseFloat(document.getElementById('fStURL').value)||S.settings.stawki.urlopowa;
-  var stN  = S.settings.stawki.nocna;
-  var stS  = S.settings.stawki.sobota;
-  var total=0, lines=[];
-  if (typ==='A') {
-    var akord=0;
-    fPoz.forEach(function(p){akord+=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);});
+function calcDay(){
+  var typ=document.getElementById('fTyp').value;
+  var czas=parseH(document.getElementById('fCzas').value);
+  var przP=parseH(document.getElementById('fPrzP').value);
+  var przA=parseH(document.getElementById('fPrzA').value);
+  var dodN=parseH(document.getElementById('fDodN').value);
+  var dodS=parseInt(document.getElementById('fDodS').value)||0;
+  var stG=parseFloat(document.getElementById('fStG').value)||S.settings.stawki.godzinowa;
+  var stU=parseFloat(document.getElementById('fStURL').value)||S.settings.stawki.urlopowa;
+  var stN=S.settings.stawki.nocna,stS=S.settings.stawki.sobota;
+  var total=0,lines=[];
+  if(typ==='A'){
+    var akord=0;fPoz.forEach(function(p){akord+=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);});
     if(akord>0){lines.push('Akord: '+fmt(akord)+' zł');total+=akord;}
     if(fUruch>0){lines.push('Uruchomienie: '+fmt(fUruch)+' zł');total+=fUruch;}
   } else if(typ==='G'){
-    var v=czas*stG; lines.push('Godzinówka: '+fmt(v)+' zł'); total+=v;
+    var v=czas*stG;lines.push('Godzinówka: '+fmt(v)+' zł');total+=v;
   } else {
-    var v=czas*stU; lines.push('Urlop: '+fmt(v)+' zł'); total+=v;
+    var v=czas*stU;lines.push('Urlop: '+fmt(v)+' zł');total+=v;
   }
-  if(przP>0){var v=przP*stG; lines.push('Przerwa płatna: '+fmt(v)+' zł'); total+=v;}
-  if(przA>0){var v=przA*stG; lines.push('Awaria płatna: '+fmt(v)+' zł');  total+=v;}
-  if(dodN>0){var v=dodN*stN; lines.push('Nocny: '+fmt(v)+' zł'); total+=v;}
-  if(dodS===1){lines.push('Sobota: '+fmt(stS)+' zł'); total+=stS;}
-  return {total:total, lines:lines};
+  if(przP>0){var v=przP*stG;lines.push('Przerwa płatna: '+fmt(v)+' zł');total+=v;}
+  if(przA>0){var v=przA*stG;lines.push('Awaria płatna: '+fmt(v)+' zł');total+=v;}
+  if(dodN>0){var v=dodN*stN;lines.push('Nocny: '+fmt(v)+' zł');total+=v;}
+  if(dodS===1){lines.push('Sobota: '+fmt(stS)+' zł');total+=stS;}
+  return{total:total,lines:lines};
 }
 
-function updatePrev() {
-  var r = calcDay();
-  document.getElementById('rBrt').textContent = fmt(r.total)+' zł';
-  document.getElementById('rNet').textContent = fmt(r.total*NETTO)+' zł';
-  document.getElementById('rBrk').innerHTML   = r.lines.join('<br>');
+function updatePrev(){
+  var r=calcDay();
+  document.getElementById('rBrt').textContent=fmt(r.total)+' zł';
+  document.getElementById('rNet').textContent=fmt(r.total*NETTO)+' zł';
+  document.getElementById('rBrk').innerHTML=r.lines.join('<br>');
 }
 
-function saveWpis() {
-  var data = document.getElementById('fData').value;
-  if (!data) { alert('Podaj datę!'); return; }
-  var r = calcDay();
-  var wpis = {
-    id:   editId||Date.now(),
-    data: data,
-    typ:  document.getElementById('fTyp').value,
-    czas: document.getElementById('fCzas').value,
-    przP: document.getElementById('fPrzP').value,
-    przA: document.getElementById('fPrzA').value,
-    dodN: document.getElementById('fDodN').value,
-    dodS: document.getElementById('fDodS').value,
-    uruch: fUruch,
-    pozycje: JSON.parse(JSON.stringify(fPoz)),
-    total: r.total,
-    breakdown: r.lines
+function saveWpis(){
+  var data=document.getElementById('fData').value;
+  if(!data){alert('Podaj datę!');return;}
+  // wpis idzie do miesiąca z daty wpisu
+  var wMonth=data.slice(0,7);
+  var r=calcDay();
+  var wpis={
+    id:editId||Date.now(), data:data,
+    typ:document.getElementById('fTyp').value,
+    czas:document.getElementById('fCzas').value,
+    przP:document.getElementById('fPrzP').value,
+    przA:document.getElementById('fPrzA').value,
+    dodN:document.getElementById('fDodN').value,
+    dodS:document.getElementById('fDodS').value,
+    uruch:fUruch,
+    pozycje:JSON.parse(JSON.stringify(fPoz)),
+    total:r.total, breakdown:r.lines
   };
-  S.wpisy = S.wpisy.filter(function(w){return w.id!==wpis.id && w.data!==data;});
-  S.wpisy.push(wpis);
-  S.wpisy.sort(function(a,b){return a.data.localeCompare(b.data);});
-  editId = null;
-  persist();
-  renderDash();
-  goTab(0);
+  var mData=getMiesiac(wMonth);
+  mData.wpisy=mData.wpisy.filter(function(w){return w.id!==wpis.id&&w.data!==data;});
+  mData.wpisy.push(wpis);
+  mData.wpisy.sort(function(a,b){return a.data.localeCompare(b.data);});
+  // przełącz na miesiąc wpisu
+  S.currentMonth=wMonth;
+  editId=null;
+  persist();renderDash();goTab(0);
 }
 
 // ── HISTORIA ──
-function renderHist() {
-  var list = document.getElementById('hlist');
-  list.innerHTML = '';
-  if (S.wpisy.length===0) {
-    list.innerHTML = '<div class="empty">Brak wpisów</div>';
-    return;
-  }
-  var rev = S.wpisy.slice().reverse();
-  rev.forEach(function(w) {
-    var dStr = new Date(w.data+'T12:00:00').toLocaleDateString('pl-PL',{weekday:'short',day:'numeric',month:'short'});
-    var pozTxt = (w.pozycje||[]).filter(function(p){return p.opis||p.stawka;}).map(function(p){
-      var s=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
-      return 'P= '+(p.opis||'—')+' × '+(p.ilosc||0)+' szt @ '+(p.stawka||0)+' zł = '+fmt(s)+' zł';
-    }).join('\n');
-    var detTxt = (w.breakdown||[]).join('\n')+(pozTxt?'\n\n'+pozTxt:'');
+function renderHist(){
+  var list=document.getElementById('hlist');
+  list.innerHTML='';
+  // zbierz wszystkie miesiące które mają wpisy
+  var months=Object.keys(S.miesiac).filter(function(m){return S.miesiac[m].wpisy&&S.miesiac[m].wpisy.length>0;});
+  months.sort(function(a,b){return b.localeCompare(a);});
+  if(!months.length){list.innerHTML='<div class="empty">Brak wpisów</div>';return;}
 
-    var card = document.createElement('div'); card.className='hcard';
-    var top  = document.createElement('div'); top.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:8px;';
-    var info = document.createElement('div'); info.style.cursor='pointer';
-    info.innerHTML = '<div class="hdate">'+dStr+'</div><div class="hmeta">Typ='+w.typ+' | T='+(w.czas||'—')+'</div>';
-    var rgt  = document.createElement('div'); rgt.style.cssText='display:flex;align-items:center;gap:6px;flex-shrink:0;';
-    var amt  = document.createElement('div');
-    amt.innerHTML = '<div class="htotal">'+fmt(w.total)+' zł</div><div class="hnetto">'+fmt(w.total*NETTO)+' netto</div>';
-    var bE   = document.createElement('button'); bE.className='bact e'; bE.textContent='✏️';
-    var bD   = document.createElement('button'); bD.className='bact d'; bD.textContent='🗑';
-    var det  = document.createElement('div'); det.className='hdet'; det.style.display='none'; det.textContent=detTxt;
+  months.forEach(function(m){
+    var mData=S.miesiac[m];
+    var wpisy=mData.wpisy.slice().reverse();
+    var totalBrt=mData.wpisy.reduce(function(a,w){return a+(w.total||0);},0);
+    var wsp=nettoWsp(mData.activeProg||'dobry');
+    var totalNet=totalBrt*wsp;
+    var isCur=m===curM();
 
-    info.addEventListener('click',function(){det.style.display=det.style.display==='none'?'block':'none';});
-    bD.addEventListener('click',function(){
-      S.wpisy = S.wpisy.filter(function(x){return x.id!==w.id;});
-      persist(); renderHist(); renderDash();
+    var block=document.createElement('div');block.className='month-block';
+
+    var mh=document.createElement('div');mh.className='month-header';
+    mh.innerHTML='<div class="mh-name">'+(isCur?'▶ ':'')+monthLabel(m)+'</div>'+
+      '<div class="mh-stats"><div class="mh-brt">'+fmt(totalBrt)+' zł</div><div style="color:var(--yellow);font-size:10px;">'+fmt(totalNet)+' netto | '+wpisy.length+' dni</div></div>';
+
+    var entries=document.createElement('div');entries.className='month-entries'+(isCur?' open':'');
+
+    // summary bar
+    var sumBar=document.createElement('div');sumBar.className='month-summary';
+    sumBar.innerHTML='<div class="ms-item">Brutto: <span>'+fmt(totalBrt)+' zł</span></div>'+
+      '<div class="ms-item">Netto: <span>'+fmt(totalNet)+' zł</span></div>'+
+      '<div class="ms-item">Dni: <span>'+wpisy.length+'</span></div>'+
+      '<div class="ms-item">Śr. dniówka: <span>'+fmt(wpisy.length>0?totalBrt/wpisy.length:0)+' zł</span></div>';
+    entries.appendChild(sumBar);
+
+    mh.addEventListener('click',function(){entries.classList.toggle('open');});
+
+    wpisy.forEach(function(w){
+      var dStr=new Date(w.data+'T12:00:00').toLocaleDateString('pl-PL',{weekday:'short',day:'numeric',month:'short'});
+      var pozTxt=(w.pozycje||[]).filter(function(p){return p.opis||p.stawka;}).map(function(p){
+        var s=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
+        return 'P= '+(p.opis||'—')+' × '+(p.ilosc||0)+' szt @ '+(p.stawka||0)+' zł = '+fmt(s)+' zł';
+      }).join('\n');
+      var detTxt=(w.breakdown||[]).join('\n')+(pozTxt?'\n\n'+pozTxt:'');
+
+      var card=document.createElement('div');card.className='hcard';
+      var top=document.createElement('div');top.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:8px;';
+      var info=document.createElement('div');info.style.cursor='pointer';
+      info.innerHTML='<div class="hdate">'+dStr+'</div><div class="hmeta">Typ='+w.typ+' | T='+(w.czas||'—')+'</div>';
+      var rgt=document.createElement('div');rgt.style.cssText='display:flex;align-items:center;gap:6px;flex-shrink:0;';
+      var amt=document.createElement('div');
+      amt.innerHTML='<div class="htotal">'+fmt(w.total)+' zł</div><div class="hnetto">'+fmt(w.total*NETTO)+' netto</div>';
+      var bE=document.createElement('button');bE.className='bact e';bE.textContent='✏️';
+      var bD=document.createElement('button');bD.className='bact d';bD.textContent='🗑';
+      var det=document.createElement('div');det.className='hdet';det.style.display='none';det.textContent=detTxt;
+
+      info.addEventListener('click',function(){det.style.display=det.style.display==='none'?'block':'none';});
+      bD.addEventListener('click',function(){
+        var mData2=getMiesiac(m);
+        mData2.wpisy=mData2.wpisy.filter(function(x){return x.id!==w.id;});
+        persist();renderHist();renderDash();
+      });
+      bE.addEventListener('click',function(){
+        S.currentMonth=m;
+        initForm(w);goTab(1);
+      });
+
+      rgt.appendChild(amt);rgt.appendChild(bE);rgt.appendChild(bD);
+      top.appendChild(info);top.appendChild(rgt);
+      card.appendChild(top);card.appendChild(det);
+      entries.appendChild(card);
     });
-    bE.addEventListener('click',function(){ initForm(w); goTab(1); });
 
-    rgt.appendChild(amt); rgt.appendChild(bE); rgt.appendChild(bD);
-    top.appendChild(info); top.appendChild(rgt);
-    card.appendChild(top); card.appendChild(det);
-    list.appendChild(card);
+    block.appendChild(mh);block.appendChild(entries);
+    list.appendChild(block);
   });
 }
 
 // ── USTAWIENIA ──
-function fillSett() {
-  var s=S.settings;
-  document.getElementById('sMonth').value  = s.month||'';
-  document.getElementById('sDni').value    = s.dniPracujacych||'';
-  document.getElementById('pDop').value    = s.progi.dop||'';
-  document.getElementById('pDopB').value   = s.progiBrt.dop||'';
-  document.getElementById('pDost').value   = s.progi.dost||'';
-  document.getElementById('pDostB').value  = s.progiBrt.dost||'';
-  document.getElementById('pDobry').value  = s.progi.dobry||'';
-  document.getElementById('pDobryB').value = s.progiBrt.dobry||'';
-  document.getElementById('pBdb').value    = s.progi.bdb||'';
-  document.getElementById('pBdbB').value   = s.progiBrt.bdb||'';
-  document.getElementById('stG').value     = s.stawki.godzinowa;
-  document.getElementById('stURL').value   = s.stawki.urlopowa;
-  document.getElementById('stN').value     = s.stawki.nocna;
-  document.getElementById('stS').value     = s.stawki.sobota;
+function fillSett(){
+  var s=S.settings,m=getMiesiac(curM());
+  document.getElementById('sMonth').value=curM();
+  document.getElementById('sDni').value=m.dni||22;
+  document.getElementById('pDop').value=s.progi.dop||'';
+  document.getElementById('pDopB').value=s.progiBrt.dop||'';
+  document.getElementById('pDost').value=s.progi.dost||'';
+  document.getElementById('pDostB').value=s.progiBrt.dost||'';
+  document.getElementById('pDobry').value=s.progi.dobry||'';
+  document.getElementById('pDobryB').value=s.progiBrt.dobry||'';
+  document.getElementById('pBdb').value=s.progi.bdb||'';
+  document.getElementById('pBdbB').value=s.progiBrt.bdb||'';
+  document.getElementById('stG').value=s.stawki.godzinowa;
+  document.getElementById('stURL').value=s.stawki.urlopowa;
+  document.getElementById('stN').value=s.stawki.nocna;
+  document.getElementById('stS').value=s.stawki.sobota;
 }
-function saveSett() {
-  S.settings.month            = document.getElementById('sMonth').value;
-  S.settings.dniPracujacych   = parseInt(document.getElementById('sDni').value)||22;
-  S.settings.progi.dop        = parseFloat(document.getElementById('pDop').value)||0;
-  S.settings.progiBrt.dop     = parseFloat(document.getElementById('pDopB').value)||0;
-  S.settings.progi.dost       = parseFloat(document.getElementById('pDost').value)||0;
-  S.settings.progiBrt.dost    = parseFloat(document.getElementById('pDostB').value)||0;
-  S.settings.progi.dobry      = parseFloat(document.getElementById('pDobry').value)||0;
-  S.settings.progiBrt.dobry   = parseFloat(document.getElementById('pDobryB').value)||0;
-  S.settings.progi.bdb        = parseFloat(document.getElementById('pBdb').value)||0;
-  S.settings.progiBrt.bdb     = parseFloat(document.getElementById('pBdbB').value)||0;
-  S.settings.stawki.godzinowa = parseFloat(document.getElementById('stG').value)||21.10;
-  S.settings.stawki.urlopowa  = parseFloat(document.getElementById('stURL').value)||35;
-  S.settings.stawki.nocna     = parseFloat(document.getElementById('stN').value)||5.72;
-  S.settings.stawki.sobota    = parseFloat(document.getElementById('stS').value)||200;
-  persist(); renderDash(); goTab(0);
+
+function saveSett(){
+  var newMonth=document.getElementById('sMonth').value;
+  if(newMonth&&newMonth!==curM()){S.currentMonth=newMonth;}
+  getMiesiac(curM()).dni=parseInt(document.getElementById('sDni').value)||22;
+  S.settings.progi.dop=parseFloat(document.getElementById('pDop').value)||0;
+  S.settings.progiBrt.dop=parseFloat(document.getElementById('pDopB').value)||0;
+  S.settings.progi.dost=parseFloat(document.getElementById('pDost').value)||0;
+  S.settings.progiBrt.dost=parseFloat(document.getElementById('pDostB').value)||0;
+  S.settings.progi.dobry=parseFloat(document.getElementById('pDobry').value)||0;
+  S.settings.progiBrt.dobry=parseFloat(document.getElementById('pDobryB').value)||0;
+  S.settings.progi.bdb=parseFloat(document.getElementById('pBdb').value)||0;
+  S.settings.progiBrt.bdb=parseFloat(document.getElementById('pBdbB').value)||0;
+  S.settings.stawki.godzinowa=parseFloat(document.getElementById('stG').value)||21.10;
+  S.settings.stawki.urlopowa=parseFloat(document.getElementById('stURL').value)||35;
+  S.settings.stawki.nocna=parseFloat(document.getElementById('stN').value)||5.72;
+  S.settings.stawki.sobota=parseFloat(document.getElementById('stS').value)||200;
+  persist();renderDash();goTab(0);
 }
-function resetAll() {
-  try { localStorage.removeItem('akord4'); } catch(e) {}
+
+function resetMonth(){
+  if(!confirm('Wyczyścić wpisy z '+monthLabel(curM())+'?'))return;
+  getMiesiac(curM()).wpisy=[];
+  persist();renderDash();
+}
+
+function resetAll(){
+  if(!confirm('Wyczyścić WSZYSTKIE dane ze wszystkich miesięcy?'))return;
+  try{localStorage.removeItem('akord5');localStorage.removeItem('akord4');}catch(e){}
   location.reload();
 }
 
-// ── LIVE LISTENERS ──
+// ── LISTENERS ──
 document.getElementById('fTyp').addEventListener('change',function(){refreshTyp();updatePrev();});
 ['fCzas','fPrzP','fPrzA','fDodN','fStG','fStURL'].forEach(function(id){
   document.getElementById(id).addEventListener('input',updatePrev);
 });
 document.getElementById('fDodS').addEventListener('change',updatePrev);
 document.getElementById('bSave').addEventListener('click',saveWpis);
-document.getElementById('bAddPoz').addEventListener('click',function(){
-  fPoz.push({opis:'',stawka:'',ilosc:''});
-  renderPoz();
-});
+document.getElementById('bAddPoz').addEventListener('click',function(){fPoz.push({opis:'',stawka:'',ilosc:''});renderPoz();});
 
 // ── START ──
 loadState();
-if (S.wpisy.length === 0) {
-  S.wpisy = buildKwiecien();
+if(!S.currentMonth) S.currentMonth=todayMonth();
+
+// załaduj dane kwiecień jeśli brak
+var apr=getMiesiac('2026-04');
+if(!apr.wpisy||apr.wpisy.length===0){
+  apr.wpisy=buildKwiecien();
+  apr.dni=23;
   persist();
 }
+
 renderDash();
 initForm();
 fillSett();
