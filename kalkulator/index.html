@@ -334,7 +334,17 @@ function setActiveProg(id){getMiesiac(curM()).activeProg=id;persist();renderDash
 function getProgi(){return S.settings.progi||[];}
 function getProgById(id){return getProgi().find(function(p){return p.id===id;})||getProgi()[getProgi().length-1];}
 function nettoWsp(p){return(p&&p.brutto>0)?p.netto/p.brutto:NETTO;}
-function parseH(s){if(!s)return 0;s=String(s).trim();var p=s.split(':');if(p.length===2)return(parseInt(p[0])||0)+(parseInt(p[1])||0)/60;return parseFloat(s)||0;}
+function parseH(s){
+  if(!s)return 0;
+  s=String(s).trim();
+  if(s.indexOf(':')>=0){
+    var p=s.split(':');
+    return(parseInt(p[0])||0)+(parseInt(p[1])||0)/60;
+  }
+  var v=parseFloat(s)||0;
+  // bez dwukropka: jeśli ≤ 90 traktuj jako minuty, inaczej godziny
+  return v<=90?v/60:v;
+}
 function fmt(n){return(Math.round(n*100)/100).toFixed(2).replace('.',',');}
 function bruttoSum(m){return getMiesiac(m||curM()).wpisy.reduce(function(a,w){return a+(w.total||0);},0);}
 function dniP(m){return getMiesiac(m||curM()).wpisy.filter(function(w){return w.typ!=='BON';}).length;}
@@ -346,21 +356,25 @@ function todayMonth(){return new Date().toISOString().slice(0,7);}
 // liczona z pozycji: suma wyk / suma normaEfekt * 100
 // normaEfekt = norma * (efektywnyczas / 8)
 function calcWydDnia(wpis){
-  var totalNorma8=0,totalSzt=0,hasData=false;
+  var totalNormaEfekt=0,totalSzt=0,hasData=false;
   (wpis.pozycje||[]).forEach(function(p){
     var cykle=parseFloat(p.norma)||0;
     var gniazda=parseFloat(p.gniazda)||1;
     var szt=parseFloat(p.ilosc)||0;
+    var czas=parseH(p.czas)||0;
+    var przP=parseH(p.przP)||0;
+    var przA=parseH(p.przA)||0;
+    var efekt=Math.max(0,czas-przP-przA);
     var sztH=cykle*gniazda;
-    if(sztH>0&&szt>0){
-      totalNorma8+=sztH*8;
+    if(sztH>0&&szt>0&&efekt>0){
+      totalNormaEfekt+=sztH*efekt;
       totalSzt+=szt;
       hasData=true;
     }
   });
   if(!hasData)return null;
-  var pct=Math.round(totalSzt/totalNorma8*100);
-  return{pct:pct,totalNorma:Math.round(totalNorma8),totalWyk:totalSzt};
+  var pct=Math.round(totalSzt/totalNormaEfekt*100);
+  return{pct:pct,totalNorma:Math.round(totalNormaEfekt),totalWyk:totalSzt};
 }
 
 function wydColor(pct){return pct>=110?'#b48eff':pct>=100?'#39d98a':pct>=90?'#ffd166':'#ef476f';}
@@ -386,7 +400,7 @@ function renderWydBox(el,m){
     '<div style="font-family:var(--mono);font-size:11px;color:'+col+'">'+wydLabel(avg)+'</div></div>'+
     '<div class="wyd-pct" style="color:'+col+'">'+avg+'%</div>'+
     '<div class="wyd-bar-wrap"><div class="wyd-bar" style="width:'+Math.min(avg,150)+'%;background:'+col+';max-width:100%"></div></div>'+
-    '<div style="font-family:var(--mono);font-size:10px;color:var(--muted)">100% = CYKLE/h × GNIAZDA × 8h | np. 50 × 6 × 8 = 2400 szt</div>';
+    '<div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Wydajność = SZT / (CYKLE × GNIAZDA × (CZAS − PRZERWA − AWARIA))</div>';
 }
 
 // ── PERSIST / LOAD ──
@@ -419,6 +433,8 @@ function loadState(){
             if(poz.norma===undefined)poz.norma='';
             if(poz.czas===undefined)poz.czas=poz.wyk||'';
             if(poz.gniazda===undefined)poz.gniazda='';
+            if(poz.przP===undefined)poz.przP='';
+            if(poz.przA===undefined)poz.przA='';
             delete poz.wyk;
           });
           if(w.awDesc===undefined)w.awDesc='';
@@ -557,7 +573,7 @@ function initForm(wpis){
     document.getElementById('fBonKwota').value=wpis.bonKwota||'';
     document.getElementById('fBonOpis').value=wpis.bonOpis||'';
     fUruch=wpis.uruch||0;
-    fPoz=wpis.pozycje&&wpis.pozycje.length>0?JSON.parse(JSON.stringify(wpis.pozycje)):[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:''}];
+    fPoz=wpis.pozycje&&wpis.pozycje.length>0?JSON.parse(JSON.stringify(wpis.pozycje)):[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:''}];
   } else {
     var today=new Date().toISOString().split('T')[0],m=curM();
     document.getElementById('fData').value=today.slice(0,7)===m?today:m+'-01';
@@ -570,7 +586,7 @@ function initForm(wpis){
     document.getElementById('fAwDesc').value='';
     document.getElementById('fBonKwota').value='';
     document.getElementById('fBonOpis').value='';
-    fUruch=0;fPoz=[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:''}];
+    fUruch=0;fPoz=[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:''}];
   }
   document.getElementById('fStG').value=S.settings.stawki.godzinowa;
   document.getElementById('fStURL').value=S.settings.stawki.urlopowa;
@@ -649,6 +665,19 @@ function renderPoz(){
       var si=document.getElementById('iwyd-'+i);if(si)si.value=c&&g?Math.round(c*g)+' szt/h':'';
     }));
     // pole auto: szt/h
+    // rząd 4: czas, przerwa, awaria (dla wydajności)
+    var r4=document.createElement('div');r4.className='poz-r2';
+    r4.appendChild(mkF('CZAS PRZY POZ. (h)',p.czas,'text','np. 7:30',i,'czas',null));
+    r4.appendChild(mkF('PRZERWA (h)',p.przP,'text','0:00 lub 30',i,'przP',null));
+    r4.appendChild(mkF('AWARIA (h)',p.przA,'text','0:00 lub 60',i,'przA',null));
+
+    // podgląd efektywnego czasu
+    var efInfo=document.createElement('div');
+    efInfo.id='efekt-'+i;
+    efInfo.style.cssText='font-family:var(--mono);font-size:10px;color:var(--muted);padding:4px 0;';
+    updateEfektInfo(efInfo, p);
+
+    // wydajność auto
     var fWydAuto=document.createElement('div');fWydAuto.className='pf';
     var lWyd=document.createElement('div');lWyd.className='pf-lbl';lWyd.textContent='WYDAJNOŚĆ (szt/h)';
     var iWyd=document.createElement('input');iWyd.className='pf-in ro';iWyd.type='text';
@@ -658,9 +687,23 @@ function renderPoz(){
     fWydAuto.appendChild(lWyd);fWydAuto.appendChild(iWyd);
     r3.appendChild(fWydAuto);
 
-    card.appendChild(top);card.appendChild(r1);card.appendChild(r2);card.appendChild(r3);
+    card.appendChild(top);card.appendChild(r1);card.appendChild(r2);card.appendChild(r3);card.appendChild(r4);card.appendChild(efInfo);
     cont.appendChild(card);
   });
+}
+
+function updateEfektInfo(el, p){
+  var czas=parseH(p.czas)||0;
+  var przP=parseH(p.przP)||0;
+  var przA=parseH(p.przA)||0;
+  var efekt=Math.max(0,czas-przP-przA);
+  if(czas>0){
+    var col=efekt>0?'var(--green)':'var(--red)';
+    el.innerHTML='⏱ Efektywny czas: <span style="color:'+col+'">'+efekt.toFixed(2)+' h</span>'
+      +(efekt<=0?' ← sprawdź czas/przerwy':'');
+  } else {
+    el.textContent='';
+  }
 }
 
 function mkF(label,val,type,ph,i,field,extra){
@@ -671,6 +714,9 @@ function mkF(label,val,type,ph,i,field,extra){
   inp.addEventListener('input',function(e){
     fPoz[i][field]=e.target.value;
     if(extra)extra();
+    // odśwież podgląd efektywnego czasu
+    var efEl=document.getElementById('efekt-'+i);
+    if(efEl)updateEfektInfo(efEl,fPoz[i]);
     updatePrev();
   });
   wrap.appendChild(lbl);wrap.appendChild(inp);
@@ -720,19 +766,10 @@ function updatePrev(){
   var totalN=0,totalSzt=0,hasWyd=false;
   fPoz.forEach(function(p){
     var c=parseFloat(p.norma)||0,g=parseFloat(p.gniazda)||1,szt=parseFloat(p.ilosc)||0;
-    if(c>0&&szt>0){totalN+=c*g*8;totalSzt+=szt;hasWyd=true;}
+    var czas=parseH(p.czas)||0,przP=parseH(p.przP)||0,przA=parseH(p.przA)||0;
+    var efekt=Math.max(0,czas-przP-przA);
+    if(c>0&&szt>0&&efekt>0){totalN+=c*g*efekt;totalSzt+=szt;hasWyd=true;}
   });
-  var el=document.getElementById('wyd-prev');
-  if(hasWyd){
-    var pct=Math.round(totalSzt/totalN*100),col=wydColor(pct);
-    document.getElementById('wyd-pct-val').textContent=pct+'% — '+wydLabel(pct);
-    document.getElementById('wyd-pct-val').style.color=col;
-    document.getElementById('wyd-bar-prev').style.cssText='width:'+Math.min(pct,150)+'%;background:'+col+';max-width:100%';
-    document.getElementById('wyd-info-prev').textContent='Norma 8h: '+Math.round(totalN)+' szt. | Wykonano: '+totalSzt+' szt.';
-    el.style.display='block';
-  } else {
-    el.style.display='none';
-  }
   var el=document.getElementById('wyd-prev');
   if(hasWyd){
     var pct=Math.round(totalSzt/totalN*100),col=wydColor(pct);
@@ -959,7 +996,7 @@ document.getElementById('fTyp').addEventListener('change',function(){refreshTyp(
 document.getElementById('fDodS').addEventListener('change',updatePrev);
 document.getElementById('bSave').addEventListener('click',saveWpis);
 document.getElementById('bAddPoz').addEventListener('click',function(){
-  fPoz.push({opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:''});renderPoz();
+  fPoz.push({opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:''});renderPoz();
 });
 
 // ── START ──
