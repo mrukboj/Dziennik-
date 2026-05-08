@@ -173,6 +173,12 @@ input[type=color]{padding:2px;height:30px;cursor:pointer;}
       <div class="sbox"><div class="slabel">Dni przepr.</div><div class="sval" id="svdni">0</div></div>
       <div class="sbox"><div class="slabel">Śr. dniówka</div><div class="sval" id="svsrd">— zł</div></div>
     </div>
+    <div class="stitle">Rozbicie zarobków</div>
+    <div class="srow" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="sbox"><div class="slabel">Akord + uruch.</div><div class="sval" id="sv-akord" style="color:var(--green)">0 zł</div></div>
+      <div class="sbox"><div class="slabel">Przestoje</div><div class="sval" id="sv-przestoje" style="color:var(--yellow)">0 zł</div></div>
+      <div class="sbox"><div class="slabel">Dodatki</div><div class="sval" id="sv-dodatki" style="color:var(--purple)">0 zł</div></div>
+    </div>
     <div class="stitle">Wydajność miesiąca</div>
     <div class="wyd-box" id="wyd-dash"></div>
   </div>
@@ -196,12 +202,6 @@ input[type=color]{padding:2px;height:30px;cursor:pointer;}
 
       <!-- AKORD -->
       <div id="sA">
-        <div class="stitle">Uruchomienie</div>
-        <div class="urow">
-          <button class="ubtn active" id="ub0" onclick="setU(0)">Brak</button>
-          <button class="ubtn" id="ub30" onclick="setU(30)">30 zł</button>
-          <button class="ubtn" id="ub60" onclick="setU(60)">60 zł</button>
-        </div>
         <div class="stitle">Pozycje akordowe</div>
         <div id="poz"></div>
         <button class="badd" id="bAddPoz">+ dodaj pozycję</button>
@@ -231,14 +231,8 @@ input[type=color]{padding:2px;height:30px;cursor:pointer;}
         </div>
       </div>
 
-      <!-- PRZESTOJE — tylko dla A/G/URL -->
-      <div id="sPrzestoje">
-        <div class="stitle">Przestoje płatne</div>
-        <div class="egrid">
-          <div class="fg"><label>Przerwa (h)</label><input type="text" id="fPrzP" placeholder="0:00"></div>
-          <div class="fg"><label>Awaria (h)</label><input type="text" id="fPrzA" placeholder="0:00"></div>
-        </div>
-        <div class="fg" style="margin-bottom:10px;"><label>Opis awarii / przestoju</label><textarea id="fAwDesc" placeholder="Co się wydarzyło? (opcjonalnie)"></textarea></div>
+      <!-- DODATKI — nocny, sobota -->
+      <div id="sDodatki">
         <div class="stitle">Dodatki</div>
         <div class="egrid">
           <div class="fg"><label>Nocny (h)</label><input type="text" id="fDodN" placeholder="0:00"></div>
@@ -435,8 +429,14 @@ function loadState(){
             if(poz.gniazda===undefined)poz.gniazda='';
             if(poz.przP===undefined)poz.przP='';
             if(poz.przA===undefined)poz.przA='';
+            if(poz.uruch===undefined)poz.uruch=0;
+            if(poz.awDesc===undefined)poz.awDesc='';
             delete poz.wyk;
           });
+          // migracja globalnego uruchomienia do pierwszej pozycji
+          if(w.uruch&&w.pozycje&&w.pozycje.length>0&&!w.pozycje[0].uruch){
+            w.pozycje[0].uruch=w.uruch;
+          }
           if(w.awDesc===undefined)w.awDesc='';
           if(w.bonKwota===undefined)w.bonKwota=0;
           if(w.bonOpis===undefined)w.bonOpis='';
@@ -555,6 +555,30 @@ function renderDash(){
   document.getElementById('svdni').textContent=dniP(m);
   var sr=dniP(m)>0?brt/dniP(m):0,sel=document.getElementById('svsrd');
   sel.textContent=fmt(sr)+' zł';sel.className='sval '+(sr>=(dB||0)?'good':'warn');
+
+  // rozbicie zarobków
+  var stG=S.settings.stawki.godzinowa,stN=S.settings.stawki.nocna,stS=S.settings.stawki.sobota;
+  var sumAkord=0,sumPrzestoje=0,sumDodatki=0;
+  getMiesiac(m).wpisy.forEach(function(w){
+    if(w.typ==='A'){
+      (w.pozycje||[]).forEach(function(p){
+        sumAkord+=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
+        sumAkord+=parseFloat(p.uruch)||0;
+        sumPrzestoje+=(parseH(p.przP)||0)*stG;
+        sumPrzestoje+=(parseH(p.przA)||0)*stG;
+      });
+    } else if(w.typ==='G'){
+      sumPrzestoje+=(parseH(w.czas)||0)*stG;
+    } else if(w.typ==='BON'){
+      sumDodatki+=w.bonKwota||0;
+    }
+    sumDodatki+=(parseH(w.dodN)||0)*stN;
+    if(parseInt(w.dodS)===1)sumDodatki+=stS;
+  });
+  document.getElementById('sv-akord').textContent=fmt(sumAkord)+' zł';
+  document.getElementById('sv-przestoje').textContent=fmt(sumPrzestoje)+' zł';
+  document.getElementById('sv-dodatki').textContent=fmt(sumDodatki)+' zł';
+
   renderWydBox(document.getElementById('wyd-dash'),m);
 }
 
@@ -565,33 +589,24 @@ function initForm(wpis){
     document.getElementById('fData').value=wpis.data||'';
     document.getElementById('fTyp').value=wpis.typ||'A';
     document.getElementById('fCzas').value=wpis.czas||'';
-    document.getElementById('fPrzP').value=wpis.przP||'0:00';
-    document.getElementById('fPrzA').value=wpis.przA||'0:00';
     document.getElementById('fDodN').value=wpis.dodN||'0:00';
     document.getElementById('fDodS').value=wpis.dodS||'0';
-    document.getElementById('fAwDesc').value=wpis.awDesc||'';
     document.getElementById('fBonKwota').value=wpis.bonKwota||'';
     document.getElementById('fBonOpis').value=wpis.bonOpis||'';
-    fUruch=wpis.uruch||0;
-    fPoz=wpis.pozycje&&wpis.pozycje.length>0?JSON.parse(JSON.stringify(wpis.pozycje)):[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:''}];
+    fPoz=wpis.pozycje&&wpis.pozycje.length>0?JSON.parse(JSON.stringify(wpis.pozycje)):[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:'',uruch:0,awDesc:''}];
   } else {
     var today=new Date().toISOString().split('T')[0],m=curM();
     document.getElementById('fData').value=today.slice(0,7)===m?today:m+'-01';
     document.getElementById('fTyp').value='A';
     document.getElementById('fCzas').value='';
-    document.getElementById('fPrzP').value='0:00';
-    document.getElementById('fPrzA').value='0:00';
     document.getElementById('fDodN').value='0:00';
     document.getElementById('fDodS').value='0';
-    document.getElementById('fAwDesc').value='';
     document.getElementById('fBonKwota').value='';
     document.getElementById('fBonOpis').value='';
-    fUruch=0;fPoz=[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:''}];
+    fPoz=[{opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:'',uruch:0,awDesc:''}];
   }
-  document.getElementById('fStG').value=S.settings.stawki.godzinowa;
-  document.getElementById('fStURL').value=S.settings.stawki.urlopowa;
   document.getElementById('bSave').textContent=editId?'ZAKTUALIZUJ WPIS':'ZAPISZ WPIS';
-  refreshTyp();refreshU();renderPoz();updatePrev();
+  refreshTyp();renderPoz();updatePrev();
 }
 
 function refreshTyp(){
@@ -600,15 +615,9 @@ function refreshTyp(){
   document.getElementById('sG').style.display=t==='G'?'':'none';
   document.getElementById('sURL').style.display=t==='URL'?'':'none';
   document.getElementById('sBON').style.display=t==='BON'?'':'none';
-  // przestoje tylko dla A/G/URL, nie dla BON
-  document.getElementById('sPrzestoje').style.display=t==='BON'?'none':'';
+  document.getElementById('sDodatki').style.display=t==='BON'?'none':'';
 }
 
-function setU(v){fUruch=v;refreshU();updatePrev();}
-function refreshU(){
-  ['ub0','ub30','ub60'].forEach(function(id){document.getElementById(id).classList.remove('active');});
-  document.getElementById(fUruch===0?'ub0':fUruch===30?'ub30':'ub60').classList.add('active');
-}
 
 function renderPoz(){
   var cont=document.getElementById('poz');cont.innerHTML='';
@@ -687,7 +696,34 @@ function renderPoz(){
     fWydAuto.appendChild(lWyd);fWydAuto.appendChild(iWyd);
     r3.appendChild(fWydAuto);
 
-    card.appendChild(top);card.appendChild(r1);card.appendChild(r2);card.appendChild(r3);card.appendChild(r4);card.appendChild(efInfo);
+    // rząd 5: uruchomienie
+    var r5=document.createElement('div');r5.className='pf';
+    var lUruch=document.createElement('div');lUruch.className='pf-lbl';lUruch.textContent='URUCHOMIENIE';
+    var uRow=document.createElement('div');uRow.style.cssText='display:flex;gap:6px;margin-top:4px;';
+    [0,30,60].forEach(function(v){
+      var b=document.createElement('button');
+      b.className='ubtn'+(((p.uruch||0)===v)?' active':'');
+      b.textContent=v===0?'Brak':v+' zł';
+      b.addEventListener('click',function(){
+        fPoz[i].uruch=v;
+        uRow.querySelectorAll('.ubtn').forEach(function(x){x.classList.remove('active');});
+        b.classList.add('active');
+        updatePrev();
+      });
+      uRow.appendChild(b);
+    });
+    r5.appendChild(lUruch);r5.appendChild(uRow);
+
+    // rząd 6: opis awarii
+    var r6=document.createElement('div');r6.className='pf';
+    var lAw=document.createElement('div');lAw.className='pf-lbl';lAw.textContent='OPIS AWARII / UWAGI (opcjonalnie)';
+    var iAw=document.createElement('textarea');
+    iAw.style.cssText='background:var(--panel);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 9px;border-radius:6px;outline:none;resize:vertical;min-height:48px;width:100%;margin-top:4px;';
+    iAw.placeholder='Co się wydarzyło?';iAw.value=p.awDesc||'';
+    iAw.addEventListener('input',function(e){fPoz[i].awDesc=e.target.value;});
+    r6.appendChild(lAw);r6.appendChild(iAw);
+
+    card.appendChild(top);card.appendChild(r1);card.appendChild(r2);card.appendChild(r3);card.appendChild(r4);card.appendChild(efInfo);card.appendChild(r5);card.appendChild(r6);
     cont.appendChild(card);
   });
 }
@@ -727,8 +763,6 @@ function mkF(label,val,type,ph,i,field,extra){
 function calcDay(){
   var typ=document.getElementById('fTyp').value;
   var czas=parseH(document.getElementById('fCzas').value);
-  var przP=parseH(document.getElementById('fPrzP').value);
-  var przA=parseH(document.getElementById('fPrzA').value);
   var dodN=parseH(document.getElementById('fDodN').value);
   var dodS=parseInt(document.getElementById('fDodS').value)||0;
   var stG=parseFloat(document.getElementById('fStG').value)||S.settings.stawki.godzinowa;
@@ -736,9 +770,17 @@ function calcDay(){
   var stN=S.settings.stawki.nocna,stS=S.settings.stawki.sobota;
   var total=0,lines=[];
   if(typ==='A'){
-    var akord=0;fPoz.forEach(function(p){akord+=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);});
-    if(akord>0){lines.push('Akord: '+fmt(akord)+' zł');total+=akord;}
-    if(fUruch>0){lines.push('Uruchomienie: '+fmt(fUruch)+' zł');total+=fUruch;}
+    fPoz.forEach(function(p){
+      var akord=(parseFloat(p.stawka)||0)*(parseFloat(p.ilosc)||0);
+      var uruch=parseFloat(p.uruch)||0;
+      var przP=parseH(p.przP)||0;
+      var przA=parseH(p.przA)||0;
+      var pozName=p.opis||'Pozycja';
+      if(akord>0){lines.push(pozName+': '+fmt(akord)+' zł');total+=akord;}
+      if(uruch>0){lines.push('  Uruchomienie: '+fmt(uruch)+' zł');total+=uruch;}
+      if(przP>0){var v=przP*stG;lines.push('  Przerwa płatna: '+fmt(v)+' zł');total+=v;}
+      if(przA>0){var v=przA*stG;lines.push('  Awaria płatna: '+fmt(v)+' zł');total+=v;}
+    });
   } else if(typ==='G'){
     var v=czas*stG;lines.push('Godzinówka: '+fmt(v)+' zł');total+=v;
   } else if(typ==='URL'){
@@ -749,8 +791,6 @@ function calcDay(){
     if(v>0){lines.push(opis+': '+fmt(v)+' zł');total+=v;}
   }
   if(typ!=='BON'){
-    if(przP>0){var v=przP*stG;lines.push('Przerwa płatna: '+fmt(v)+' zł');total+=v;}
-    if(przA>0){var v=przA*stG;lines.push('Awaria płatna: '+fmt(v)+' zł');total+=v;}
     if(dodN>0){var v=dodN*stN;lines.push('Nocny: '+fmt(v)+' zł');total+=v;}
     if(dodS===1){lines.push('Sobota: '+fmt(stS)+' zł');total+=stS;}
   }
@@ -791,13 +831,10 @@ function saveWpis(){
     id:editId||Date.now(),data:data,
     typ:document.getElementById('fTyp').value,
     czas:document.getElementById('fCzas').value,
-    przP:document.getElementById('fPrzP').value,
-    przA:document.getElementById('fPrzA').value,
     dodN:document.getElementById('fDodN').value,
     dodS:document.getElementById('fDodS').value,
-    uruch:fUruch,pozycje:JSON.parse(JSON.stringify(fPoz)),
+    pozycje:JSON.parse(JSON.stringify(fPoz)),
     total:r.total,breakdown:r.lines,
-    awDesc:document.getElementById('fAwDesc').value,
     bonKwota:parseFloat(document.getElementById('fBonKwota').value)||0,
     bonOpis:document.getElementById('fBonOpis').value
   };
@@ -990,13 +1027,14 @@ function resetAll(){
 
 // ── LISTENERS ──
 document.getElementById('fTyp').addEventListener('change',function(){refreshTyp();updatePrev();});
-['fCzas','fPrzP','fPrzA','fDodN','fStG','fStURL','fBonKwota'].forEach(function(id){
-  document.getElementById(id).addEventListener('input',updatePrev);
+['fCzas','fDodN','fBonKwota'].forEach(function(id){
+  var el=document.getElementById(id);
+  if(el)el.addEventListener('input',updatePrev);
 });
 document.getElementById('fDodS').addEventListener('change',updatePrev);
 document.getElementById('bSave').addEventListener('click',saveWpis);
 document.getElementById('bAddPoz').addEventListener('click',function(){
-  fPoz.push({opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:''});renderPoz();
+  fPoz.push({opis:'',stawka:'',ilosc:'',norma:'',czas:'',gniazda:'',przP:'',przA:'',uruch:0,awDesc:''});renderPoz();
 });
 
 // ── START ──
