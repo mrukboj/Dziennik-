@@ -110,7 +110,7 @@ header{background:var(--accent);padding:14px 16px;position:sticky;top:0;z-index:
     <div class="form-title" id="form-title">➕ Nowy wpis</div>
     <div class="field">
       <label>DATA</label>
-      <input type="date" id="f-data">
+      <input type="date" id="f-data" min="2020-01-01" max="2099-12-31">
     </div>
     <div class="field">
       <label>ZLECENIE / PRODUKT</label>
@@ -157,6 +157,17 @@ function todayStr(){return new Date().toISOString().slice(0,10);}
 function load(){try{const d=localStorage.getItem(KEY);if(d)DB=JSON.parse(d);}catch(e){DB={};}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(DB));}catch(e){}}
 function getEntries(m){return(DB[m]||[]).slice().sort((a,b)=>b.data.localeCompare(a.data));}
+
+// ── DATE ──
+function getDateStr(){
+  return document.getElementById('f-data').value||todayStr();
+}
+function setDateSelects(dateStr){
+  document.getElementById('f-data').value=dateStr;
+  // sync nagłówek
+  currentMonth=dateStr.slice(0,7);
+  updateHeader();renderList();
+}
 function parseH(s){
   if(!s)return 0;
   s=String(s).trim();
@@ -238,7 +249,7 @@ document.getElementById('f-sztuki').addEventListener('input',updatePreview);
 document.getElementById('f-stawka').addEventListener('input',updatePreview);
 
 document.getElementById('btn-save').addEventListener('click',function(){
-  const data=document.getElementById('f-data').value||todayStr();
+  const data=getDateStr();
   const zlecenie=document.getElementById('f-zlecenie').value.trim();
   const sztuki=parseFloat(document.getElementById('f-sztuki').value)||0;
   const stawka=parseFloat(document.getElementById('f-stawka').value)||0;
@@ -270,7 +281,7 @@ document.getElementById('entries-list').addEventListener('click',function(e){
     const entry=(DB[m]||[]).find(x=>x.id===id);if(!entry)return;
     editId=id;
     currentMonth=m;
-    document.getElementById('f-data').value=entry.data;
+    setDateSelects(entry.data);
     document.getElementById('f-zlecenie').value=entry.zlecenie||'';
     document.getElementById('f-sztuki').value=entry.sztuki||'';
     document.getElementById('f-stawka').value=entry.stawka||'';
@@ -299,18 +310,30 @@ document.getElementById('entries-list').addEventListener('click',function(e){
   }
 });
 
+function addMonth(monthStr, delta){
+  let [y,m]=monthStr.split('-').map(Number);
+  m+=delta;
+  while(m>12){m-=12;y++;}
+  while(m<1){m+=12;y--;}
+  return y+'-'+String(m).padStart(2,'0');
+}
+
 document.getElementById('prev-btn').addEventListener('click',function(){
-  const d=new Date(currentMonth+'-01');d.setMonth(d.getMonth()-1);
-  currentMonth=d.toISOString().slice(0,7);
+  currentMonth=addMonth(currentMonth,-1);
   updateHeader();renderList();
 });
 document.getElementById('next-btn').addEventListener('click',function(){
-  const d=new Date(currentMonth+'-01');d.setMonth(d.getMonth()+1);
-  currentMonth=d.toISOString().slice(0,7);
+  currentMonth=addMonth(currentMonth,1);
   updateHeader();renderList();
 });
 
+// sync nagłówka gdy zmieni się data
+document.getElementById('f-data').addEventListener('change',function(){
+  if(this.value){currentMonth=this.value.slice(0,7);updateHeader();renderList();}
+});
+
 load();
+currentMonth=todayMonth();
 document.getElementById('f-data').value=todayStr();
 updateHeader();renderList();
 </script>
