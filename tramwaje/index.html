@@ -146,7 +146,9 @@ async function getJSON(url){
   let lastErr;
   for(const t of tries){
     try{
-      const data = await fetchJSON(t === 'direct' ? url : FALLBACK_PROXIES[t](url));
+      // znacznik czasu, żeby pośrednik nie podawał starej kopii z pamięci
+      const fresh = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
+      const data = await fetchJSON(t === 'direct' ? url : FALLBACK_PROXIES[t](fresh));
       hostRoute[key] = t;
       return data;
     }catch(e){ lastErr = e }
@@ -348,7 +350,8 @@ async function loadGps(){
          ${v.ac ? 'klimatyzacja' : 'bez klimatyzacji'} · ${(v.floor || '').replace('Pojazd ','')}<br>
          ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`);
     }
-    info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
+    const age = Math.round((Date.now() - new Date(data.lastUpdate)) / 60000);
+    info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
   }catch(e){
     info.textContent = corsHint(e);
   }
