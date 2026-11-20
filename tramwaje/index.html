@@ -124,6 +124,7 @@ const state = {
 // Publiczni pośrednicy, gdy serwer nie wpuszcza zapytań z innej strony (CORS)
 const FALLBACK_PROXIES = [
   u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+  u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u),
   u => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
 ];
 const hostRoute = {}; // host -> 'direct' | indeks pośrednika
@@ -138,23 +139,23 @@ async function fetchJSON(u){
 
 async function getJSON(url){
   if(state.proxy) return fetchJSON(state.proxy + encodeURIComponent(url));
-  const host = new URL(url).host;
-  const route = hostRoute[host];
-  const tries = route === undefined ? ['direct', 0, 1]
-    : route === 'direct' ? ['direct'] : [route, ...[0,1].filter(i => i !== route)];
+  const key = url.split('?')[0];
+  const all = ['direct', ...FALLBACK_PROXIES.map((_, i) => i)];
+  const route = hostRoute[key];
+  const tries = route === undefined ? all : [route, ...all.filter(t => t !== route)];
   let lastErr;
   for(const t of tries){
     try{
       const data = await fetchJSON(t === 'direct' ? url : FALLBACK_PROXIES[t](url));
-      hostRoute[host] = t;
+      hostRoute[key] = t;
       return data;
     }catch(e){ lastErr = e }
   }
   throw lastErr;
 }
 
-function routeLabel(){
-  const r = hostRoute['ckan2.multimediagdansk.pl'];
+function routeLabel(key){
+  const r = hostRoute[key];
   return r === undefined ? '' : r === 'direct' ? ' · bezpośrednio' : ' · przez pośrednika ' + (r+1);
 }
 
@@ -294,7 +295,7 @@ async function loadDeps(){
         <div class="tm">${min <= 0 ? 'teraz' : min + ' min'}<small>${hhmm(t)}${delay ? (delay>0?' +':' ')+delay : ''}</small></div>`;
       box.appendChild(el);
     }
-    info.textContent = 'aktualizacja ' + hhmm(new Date()) + ' · co 20 s' + routeLabel();
+    info.textContent = 'aktualizacja ' + hhmm(new Date()) + ' · co 20 s' + routeLabel('https://ckan2.multimediagdansk.pl/departures');
   }catch(e){
     box.innerHTML = '<div class="err">' + corsHint(e) + '</div>';
   }
@@ -347,7 +348,7 @@ async function loadGps(){
          ${v.ac ? 'klimatyzacja' : 'bez klimatyzacji'} · ${(v.floor || '').replace('Pojazd ','')}<br>
          ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`);
     }
-    info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + ' · co 15 s' + routeLabel();
+    info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
   }catch(e){
     info.textContent = corsHint(e);
   }
