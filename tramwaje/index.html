@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14213d">
+<title>Który tramwaj</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{--bg:#f4f5f7;--card:#fff;--ink:#14213d;--mut:#6b7280;--line:#e5e7eb;--acc:#fca311}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{position:sticky;top:0;z-index:1000;background:var(--ink);color:#fff;padding:8px 10px;display:flex;align-items:center;gap:8px}
+  header h1{font-size:16px;margin:0;flex:1}
+  .tabs{display:flex;gap:4px}
+  .tabs button{background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:5px 10px;font-size:14px}
+  .tabs button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:600}
+  main{height:calc(100% - 46px - 22px)}
+  section{display:none;height:100%}
+  section.on{display:block}
+  #stopView{overflow:auto;padding:8px}
+  .row{display:flex;gap:6px;align-items:center}
+  input[type=search]{flex:1;font-size:16px;padding:8px;border:1px solid var(--line);border-radius:8px}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:14px;padding:4px 9px;font-size:13px}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .list{background:var(--card);border-radius:10px;overflow:hidden;margin-top:6px}
+  .item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);font-size:14px}
+  .item:last-child{border-bottom:0}
+  .ln{min-width:34px;text-align:center;font-weight:700;background:var(--ink);color:#fff;border-radius:5px;padding:3px 4px;font-size:14px}
+  .ln.bus{background:#5b6170}
+  .hd{flex:1;min-width:0}
+  .hd b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  .hd small{color:var(--mut)}
+  .tm{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+  .tm small{display:block;font-weight:400;color:var(--mut);font-size:11px}
+  .mdl{display:inline-block;border-radius:4px;padding:1px 5px;font-size:11px;font-weight:600;color:#fff;margin-right:4px}
+  .star{background:none;border:0;font-size:20px;color:var(--acc);padding:0 4px}
+  .muted{color:var(--mut);font-size:13px;padding:8px 2px}
+  .err{background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px;font-size:13px;margin:6px 0}
+  #mapView{position:relative}
+  #map{position:absolute;inset:0}
+  #mapBar{position:absolute;z-index:500;left:6px;right:6px;top:6px;background:#ffffffee;border-radius:8px;padding:4px 6px;box-shadow:0 1px 4px #0003}
+  #mapBar .chips{margin:0}
+  #mapInfo{font-size:11px;color:var(--mut);margin-top:2px}
+  .tram{width:30px;height:22px;border-radius:6px;color:#fff;font:700 12px/22px system-ui;text-align:center;border:2px solid #fff;box-shadow:0 1px 3px #0006}
+  .leaflet-popup-content{margin:8px 10px;font-size:13px;line-height:1.35}
+  footer{height:22px;font-size:10px;color:var(--mut);text-align:center;line-height:22px}
+  dialog{border:0;border-radius:10px;max-width:92vw}
+  dialog input{width:100%;font-size:14px;padding:6px;margin:6px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Który tramwaj</h1>
+  <div class="tabs">
+    <button id="tStop" class="on">Przystanek</button>
+    <button id="tMap">Mapa</button>
+    <button id="tSet" title="Ustawienia">⚙</button>
+  </div>
+</header>
+
+<main>
+  <section id="stopView" class="on">
+    <div class="row"><input id="q" type="search" placeholder="Szukaj przystanku…" autocomplete="off"></div>
+    <div id="favs" class="chips"></div>
+    <div id="results" class="list"></div>
+    <div id="stopHead" class="row" style="margin-top:8px"></div>
+    <div id="deps" class="list"></div>
+    <div id="depInfo" class="muted"></div>
+  </section>
+
+  <section id="mapView">
+    <div id="map"></div>
+    <div id="mapBar">
+      <div id="mFilter" class="chips"></div>
+      <div id="mapInfo">ładowanie…</div>
+    </div>
+  </section>
+</main>
+<footer>dane: ZTM w Gdańsku (CC BY) · KA</footer>
+
+<dialog id="dlg">
+  <b>Ustawienia</b>
+  <div class="muted">Adres pośrednika (proxy). Zostaw puste, jeśli dane pobierają się bez niego. Przykład: https://twoj-worker.workers.dev/?url=</div>
+  <input id="proxy" placeholder="https://…/?url=">
+  <div class="row" style="justify-content:flex-end"><button id="dlgOk">Zapisz</button></div>
+</dialog>
+
+<script>
+const API = {
+  gps: 'https://ckan2.multimediagdansk.pl/gpsPositions?v=2',
+  deps: id => 'https://ckan2.multimediagdansk.pl/departures?stopId=' + id,
+  fleet: 'https://files.cloudgdansk.pl/d/otwarte-dane/ztm/baza-pojazdow.json?v=2',
+  stops: 'https://ckan.multimediagdansk.pl/dataset/c24aa637-3619-4dc2-a171-a23eec8f2172/resource/4c4025f0-01bf-41f7-a39f-d156d201b82b/download/stops.json'
+};
+
+// Kody fabryczne -> potoczne nazwy i kolory
+const MODELS = [
+  {key:'swing', name:'Swing',    color:'#2a9d8f', test:m => /120NaG/i.test(m)},
+  {key:'jazz',  name:'Jazz Duo', color:'#2563eb', test:m => /128N/i.test(m)},
+  {key:'n8c',   name:'N8C',      color:'#e76f51', test:m => /N8C/i.test(m)},
+  {key:'ngt6',  name:'NGT6',     color:'#8e44ad', test:m => /NGT6/i.test(m)},
+  {key:'ngd99', name:'NGd99',    color:'#6b7280', test:m => /NGd99/i.test(m)},
+  {key:'hist',  name:'zabytkowy',color:'#8d6e63', test:(m,v) => v && v.historicVehicle},
+  {key:'other', name:'inny',     color:'#374151', test:() => true},
+];
+
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d }catch(e){ return d } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
+};
+
+const state = {
+  fleet: {},          // vehicleCode -> pojazd
+  stops: [],          // uproszczona lista przystanków
+  favs: LS.get('kt_favs', []),
+  stop: LS.get('kt_stop', null),
+  mapModels: LS.get('kt_mapModels', MODELS.map(m => m.key)),
+  proxy: LS.get('kt_proxy', ''),
+};
+
+async function getJSON(url){
+  const u = state.proxy ? state.proxy + encodeURIComponent(url) : url;
+  const r = await fetch(u, {cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+function corsHint(e){
+  return 'Nie udało się pobrać danych (' + e.message + '). Jeśli to błąd sieci/CORS, potrzebny będzie pośrednik — ustaw go w ⚙.';
+}
+
+// ---------- baza pojazdów ----------
+function classify(v){
+  if(!v) return null;
+  const m = v.model || '';
+  return MODELS.find(x => x.test(m, v));
+}
+function vInfo(code){
+  const v = state.fleet[String(code)];
+  if(!v) return null;
+  const c = classify(v);
+  return {v, c, label: c.key === 'other' ? (v.model || 'nieznany') : c.name};
+}
+
+async function loadFleet(){
+  const today = new Date().toISOString().slice(0,10);
+  const cached = LS.get('kt_fleet', null);
+  if(cached && cached.d === today){ state.fleet = cached.f; return }
+  const data = await getJSON(API.fleet);
+  const f = {};
+  for(const v of (data.results || [])){
+    f[String(v.vehicleCode)] = {
+      model: v.model, brand: v.brand, year: v.productionYear,
+      type: v.transportationType, seats: v.seats, stand: v.standingPlaces,
+      ac: v.airConditioning, floor: v.floorHeight, historicVehicle: v.historicVehicle,
+      usb: v.usb, patron: v.patron
+    };
+  }
+  state.fleet = f;
+  LS.set('kt_fleet', {d: today, f});
+}
+
+// ---------- przystanki ----------
+async function loadStops(){
+  const today = new Date().toISOString().slice(0,10);
+  const cached = LS.get('kt_stops', null);
+  if(cached && cached.d === today){ state.stops = cached.s; return }
+  const data = await getJSON(API.stops);
+  const key = Object.keys(data).sort().pop();
+  const seen = new Set(), s = [];
+  for(const x of data[key].stops){
+    if(!x.stopName || x.virtual || x.nonpassenger || x.depot) continue;
+    if(seen.has(x.stopId)) continue;
+    seen.add(x.stopId);
+    s.push({id:x.stopId, n:x.stopName, c:x.stopCode || '', z:x.zoneName || '', t:x.type});
+  }
+  state.stops = s;
+  LS.set('kt_stops', {d: today, s});
+}
+
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ł/g,'l');
+
+function renderResults(){
+  const q = norm(document.getElementById('q').value.trim());
+  const box = document.getElementById('results');
+  box.innerHTML = '';
+  if(q.length < 2) return;
+  const hits = state.stops.filter(s => norm(s.n).includes(q))
+    .sort((a,b) => (a.t==='TRAM'?0:1)-(b.t==='TRAM'?0:1) || a.n.localeCompare(b.n) || a.c.localeCompare(b.c))
+    .slice(0, 30);
+  if(!hits.length){ box.innerHTML = '<div class="muted">Brak wyników</div>'; return }
+  for(const s of hits){
+    const d = document.createElement('div');
+    d.className = 'item';
+    d.innerHTML = `<span class="ln ${s.t==='TRAM'?'':'bus'}">${s.c||'–'}</span>
+      <div class="hd"><b>${s.n}</b><small>${s.t==='TRAM'?'tramwaj':'autobus'} · ${s.z}</small></div>`;
+    d.onclick = () => { selectStop(s); document.getElementById('q').value=''; box.innerHTML='' };
+    box.appendChild(d);
+  }
+}
+
+function renderFavs(){
+  const box = document.getElementById('favs');
+  box.innerHTML = '';
+  for(const s of state.favs){
+    const b = document.createElement('button');
+    b.className = 'chip' + (state.stop && state.stop.id === s.id ? ' on' : '');
+    b.textContent = s.n + ' ' + s.c;
+    b.onclick = () => selectStop(s);
+    box.appendChild(b);
+  }
+}
+
+function selectStop(s){
+  state.stop = s; LS.set('kt_stop', s);
+  renderFavs(); renderStopHead(); loadDeps();
+}
+
+function renderStopHead(){
+  const h = document.getElementById('stopHead');
+  const s = state.stop;
+  if(!s){ h.innerHTML = '<div class="muted">Wyszukaj przystanek, a potem dodaj go gwiazdką do ulubionych.</div>'; return }
+  const fav = state.favs.some(f => f.id === s.id);
+  h.innerHTML = `<b style="flex:1">${s.n} ${s.c}</b><button class="star">${fav?'★':'☆'}</button>`;
+  h.querySelector('.star').onclick = () => {
+    state.favs = fav ? state.favs.filter(f => f.id !== s.id) : [...state.favs, s];
+    LS.set('kt_favs', state.favs); renderFavs(); renderStopHead();
+  };
+}
+
+// ---------- odjazdy ----------
+const hhmm = d => d.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+
+async function loadDeps(){
+  const s = state.stop; if(!s) return;
+  const box = document.getElementById('deps'), info = document.getElementById('depInfo');
+  try{
+    const data = await getJSON(API.deps(s.id));
+    const list = data.departures || (data[s.id] && data[s.id].departures) || [];
+    box.innerHTML = '';
+    if(!list.length){ box.innerHTML = '<div class="muted">Brak odjazdów w najbliższym czasie.</div>' }
+    const now = Date.now();
+    for(const d of list.slice(0, 20)){
+      const t = new Date(d.estimatedTime || d.theoreticalTime);
+      const min = Math.round((t - now) / 60000);
+      const vi = d.vehicleCode != null ? vInfo(d.vehicleCode) : null;
+      const isTram = vi ? vi.v.type === 'Tramwaj' : Number(d.routeShortName) < 20;
+      const delay = d.delayInSeconds != null ? Math.round(d.delayInSeconds/60) : null;
+      let veh;
+      if(vi){
+        veh = `<span class="mdl" style="background:${vi.c.color}">${vi.label}</span>#${d.vehicleCode}${vi.v.ac?' · klima':''}`;
+      } else if(d.vehicleCode != null){
+        veh = '#' + d.vehicleCode;
+      } else {
+        veh = 'wóz jeszcze nieznany (rozkład)';
+      }
+      const el = document.createElement('div');
+      el.className = 'item';
+      el.innerHTML = `<span class="ln ${isTram?'':'bus'}">${d.routeShortName}</span>
+        <div class="hd"><b>${d.headsign || ''}</b><small>${veh}</small></div>
+        <div class="tm">${min <= 0 ? 'teraz' : min + ' min'}<small>${hhmm(t)}${delay ? (delay>0?' +':' ')+delay : ''}</small></div>`;
+      box.appendChild(el);
+    }
+    info.textContent = 'aktualizacja ' + hhmm(new Date()) + ' · odświeża się co 20 s';
+  }catch(e){
+    box.innerHTML = '<div class="err">' + corsHint(e) + '</div>';
+  }
+}
+
+// ---------- mapa ----------
+let map, layer;
+function initMap(){
+  map = L.map('map', {zoomControl:false}).setView([54.37, 18.62], 12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap'
+  }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+  const box = document.getElementById('mFilter');
+  for(const m of MODELS){
+    const b = document.createElement('button');
+    b.className = 'chip' + (state.mapModels.includes(m.key) ? ' on' : '');
+    b.style.borderLeft = '4px solid ' + m.color;
+    b.textContent = m.name;
+    b.onclick = () => {
+      state.mapModels = state.mapModels.includes(m.key) ? state.mapModels.filter(k => k !== m.key) : [...state.mapModels, m.key];
+      LS.set('kt_mapModels', state.mapModels);
+      b.classList.toggle('on'); loadGps();
+    };
+    box.appendChild(b);
+  }
+}
+
+async function loadGps(){
+  if(!map) return;
+  const info = document.getElementById('mapInfo');
+  try{
+    const data = await getJSON(API.gps);
+    layer.clearLayers();
+    let n = 0;
+    for(const g of data.vehicles || []){
+      const vi = vInfo(g.vehicleCode);
+      if(!vi || vi.v.type !== 'Tramwaj') continue;
+      if(!state.mapModels.includes(vi.c.key)) continue;
+      n++;
+      const icon = L.divIcon({className:'', iconSize:[30,22], iconAnchor:[15,11],
+        html:`<div class="tram" style="background:${vi.c.color}">${g.routeShortName || '–'}</div>`});
+      const delay = g.delay != null ? Math.round(g.delay/60) : null;
+      const v = vi.v;
+      L.marker([g.lat, g.lon], {icon}).addTo(layer).bindPopup(
+        `<b>${g.routeShortName || '?'} → ${g.headsign || 'zjazd / brak kursu'}</b><br>
+         <span class="mdl" style="background:${vi.c.color}">${vi.label}</span> #${g.vehicleCode}<br>
+         ${v.brand || ''} ${v.model || ''}, ${v.year || '?'}<br>
+         miejsca: ${v.seats ?? '?'} siedz. / ${v.stand ?? '?'} stoj.<br>
+         ${v.ac ? 'klimatyzacja' : 'bez klimatyzacji'} · ${(v.floor || '').replace('Pojazd ','')}<br>
+         ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`);
+    }
+    info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + ' · co 15 s';
+  }catch(e){
+    info.textContent = corsHint(e);
+  }
+}
+
+// ---------- zakładki i start ----------
+function tab(which){
+  document.getElementById('tStop').classList.toggle('on', which==='stop');
+  document.getElementById('tMap').classList.toggle('on', which==='map');
+  document.getElementById('stopView').classList.toggle('on', which==='stop');
+  document.getElementById('mapView').classList.toggle('on', which==='map');
+  if(which==='map'){ if(!map) initMap(); setTimeout(() => map.invalidateSize(), 50); loadGps() }
+}
+document.getElementById('tStop').onclick = () => tab('stop');
+document.getElementById('tMap').onclick = () => tab('map');
+document.getElementById('tSet').onclick = () => { document.getElementById('proxy').value = state.proxy; document.getElementById('dlg').showModal() };
+document.getElementById('dlgOk').onclick = () => {
+  state.proxy = document.getElementById('proxy').value.trim();
+  LS.set('kt_proxy', state.proxy);
+  document.getElementById('dlg').close();
+  start();
+};
+document.getElementById('q').addEventListener('input', renderResults);
+
+async function start(){
+  const info = document.getElementById('depInfo');
+  info.textContent = 'Ładowanie bazy pojazdów i przystanków…';
+  try{
+    await Promise.all([loadFleet(), loadStops()]);
+    info.textContent = '';
+  }catch(e){
+    document.getElementById('deps').innerHTML = '<div class="err">' + corsHint(e) + '</div>';
+    info.textContent = '';
+    return;
+  }
+  renderFavs(); renderStopHead(); loadDeps();
+}
+
+setInterval(() => { if(document.visibilityState==='visible' && document.getElementById('stopView').classList.contains('on')) loadDeps() }, 20000);
+setInterval(() => { if(document.visibilityState==='visible' && map && document.getElementById('mapView').classList.contains('on')) loadGps() }, 15000);
+start();
+</script>
+</body>
+</html>
