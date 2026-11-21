@@ -44,7 +44,9 @@
   #mapBar{position:absolute;z-index:500;left:6px;right:6px;top:6px;background:#ffffffee;border-radius:8px;padding:4px 6px;box-shadow:0 1px 4px #0003}
   #mapBar .chips{margin:0}
   #mapInfo{font-size:11px;color:var(--mut);margin-top:2px}
-  .tram{width:30px;height:22px;border-radius:6px;color:#fff;font:700 12px/22px system-ui;text-align:center;border:2px solid #fff;box-shadow:0 1px 3px #0006}
+  .tram{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:1px 6px;border-radius:7px;color:#fff;font:700 13px/19px system-ui;border:2px solid #fff;box-shadow:0 1px 3px #0006}
+  .tram small{font:500 11px/19px system-ui;opacity:.95}
+  .tram i{font-style:normal;display:inline-block;font-size:10px;line-height:10px}
   .leaflet-popup-content{margin:8px 10px;font-size:13px;line-height:1.35}
   footer{height:22px;font-size:10px;color:var(--mut);text-align:center;line-height:22px}
   dialog{border:0;border-radius:10px;max-width:92vw}
@@ -143,7 +145,9 @@ async function getJSON(url){
   const key = url.split('?')[0];
   const all = ['direct', ...FALLBACK_PROXIES.map((_, i) => i)];
   const route = hostRoute[key];
-  const tries = route === undefined ? [0, 'direct', ...all.filter(t => t !== 0 && t !== 'direct')] : [route, ...all.filter(t => t !== route)];
+  const live = url.includes('ckan2.multimediagdansk.pl');
+  const first = live ? [0, 'direct'] : ['direct', 0];
+  const tries = route === undefined ? [...first, ...all.filter(t => !first.includes(t))] : [route, ...all.filter(t => t !== route)];
   let lastErr;
   for(const t of tries){
     try{
@@ -203,7 +207,11 @@ async function loadStops(){
   const cached = LS.get('kt_stops', null);
   if(cached && cached.d === today){ state.stops = cached.s; return }
   const data = await getJSON(API.stops);
-  const key = Object.keys(data).sort().pop();
+  const d = new Date(), local = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const keys = Object.keys(data).filter(k => data[k] && Array.isArray(data[k].stops));
+  const named = k => data[k].stops.filter(x => x.stopName).length;
+  const key = keys.includes(local) && named(local) > 100 ? local : keys.sort((a,b) => named(b) - named(a))[0];
+  if(!key) throw new Error('pusty plik przystanków');
   const seen = new Set(), s = [];
   for(const x of data[key].stops){
     if(!x.stopName || x.virtual || x.nonpassenger || x.depot) continue;
@@ -225,7 +233,12 @@ function renderResults(){
   const hits = state.stops.filter(s => norm(s.n).includes(q))
     .sort((a,b) => (a.t==='TRAM'?0:1)-(b.t==='TRAM'?0:1) || a.n.localeCompare(b.n) || a.c.localeCompare(b.c))
     .slice(0, 30);
-  if(!hits.length){ box.innerHTML = '<div class="muted">Brak wyników</div>'; return }
+  if(!hits.length){
+    box.innerHTML = state.stopsErr
+      ? '<div class="err">Lista przystanków się nie wczytała (' + state.stopsErr + '). Spróbuję ponownie za chwilę.</div>'
+      : '<div class="muted">Brak wyników' + (state.stops.length ? '' : ' — lista przystanków jest pusta') + '</div>';
+    return;
+  }
   for(const s of hits){
     const d = document.createElement('div');
     d.className = 'item';
@@ -312,6 +325,7 @@ function initMap(){
     maxZoom: 19, attribution: '© OpenStreetMap'
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
+  map.on('zoomend', () => { if(lastGps) drawGps(lastGps) });
   const box = document.getElementById('mFilter');
   for(const m of MODELS){
     const b = document.createElement('button');
@@ -321,10 +335,24 @@ function initMap(){
     b.onclick = () => {
       state.mapModels = state.mapModels.includes(m.key) ? state.mapModels.filter(k => k !== m.key) : [...state.mapModels, m.key];
       LS.set('kt_mapModels', state.mapModels);
-      b.classList.toggle('on'); loadGps();
+      b.classList.toggle('on'); if(lastGps) drawGps(lastGps); else loadGps();
     };
     box.appendChild(b);
   }
+}
+
+let lastGps = null;
+function tramLabel(g, vi){
+  const z = map.getZoom();
+  const moving = g.speed > 0 || g.direction;
+  const arrow = moving ? `<i style="transform:rotate(${g.direction||0}deg)">▲</i>` : '';
+  let head = (g.headsign || 'zjazd').replace(/\s*PKM$/,'');
+  if(head.length > 16) head = head.slice(0, 15) + '…';
+  const delay = g.delay != null ? Math.round(g.delay/60) : 0;
+  let html = arrow + '<b>' + (g.routeShortName || '–') + '</b>';
+  if(z >= 14) html += '<small>' + head + '</small>';
+  if(z >= 15) html += '<small>· ' + vi.label + (delay >= 2 ? ' · +' + delay : '') + '</small>';
+  return `<div class="tram" style="background:${vi.c.color}">${html}</div>`;
 }
 
 async function loadGps(){
@@ -332,6 +360,16 @@ async function loadGps(){
   const info = document.getElementById('mapInfo');
   try{
     const data = await getJSON(API.gps);
+    lastGps = data;
+    drawGps(data);
+  }catch(e){
+    info.textContent = corsHint(e);
+  }
+}
+
+function drawGps(data){
+  const info = document.getElementById('mapInfo');
+  {
     layer.clearLayers();
     let n = 0;
     for(const g of data.vehicles || []){
@@ -339,8 +377,7 @@ async function loadGps(){
       if(!vi || vi.v.type !== 'Tramwaj') continue;
       if(!state.mapModels.includes(vi.c.key)) continue;
       n++;
-      const icon = L.divIcon({className:'', iconSize:[30,22], iconAnchor:[15,11],
-        html:`<div class="tram" style="background:${vi.c.color}">${g.routeShortName || '–'}</div>`});
+      const icon = L.divIcon({className:'', iconSize:[0,0], iconAnchor:[0,0], html: tramLabel(g, vi)});
       const delay = g.delay != null ? Math.round(g.delay/60) : null;
       const v = vi.v;
       L.marker([g.lat, g.lon], {icon}).addTo(layer).bindPopup(
@@ -353,8 +390,6 @@ async function loadGps(){
     }
     const age = Math.round((Date.now() - new Date(data.lastUpdate)) / 60000);
     info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
-  }catch(e){
-    info.textContent = corsHint(e);
   }
 }
 
@@ -377,18 +412,20 @@ document.getElementById('dlgOk').onclick = () => {
 };
 document.getElementById('q').addEventListener('input', renderResults);
 
+async function retryStops(){
+  try{ await loadStops(); state.stopsErr = ''; renderResults() }
+  catch(e){ state.stopsErr = e.message; setTimeout(retryStops, 60000) }
+}
+
 async function start(){
   const info = document.getElementById('depInfo');
   info.textContent = 'Ładowanie bazy pojazdów i przystanków…';
-  try{
-    await Promise.all([loadFleet(), loadStops()]);
-    info.textContent = '';
-  }catch(e){
-    document.getElementById('deps').innerHTML = '<div class="err">' + corsHint(e) + '</div>';
-    info.textContent = '';
-    return;
-  }
+  const [f, st] = await Promise.allSettled([loadFleet(), loadStops()]);
+  info.textContent = '';
+  state.stopsErr = st.status === 'rejected' ? st.reason.message : '';
+  if(f.status === 'rejected') document.getElementById('deps').innerHTML = '<div class="err">Baza pojazdów: ' + corsHint(f.reason) + '</div>';
   renderFavs(); renderStopHead(); loadDeps();
+  if(state.stopsErr) setTimeout(retryStops, 30000);
 }
 
 setInterval(() => { if(document.visibilityState==='visible' && document.getElementById('stopView').classList.contains('on')) loadDeps() }, 20000);
