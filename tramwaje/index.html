@@ -14,7 +14,26 @@
   header{position:sticky;top:0;z-index:1000;background:var(--ink);color:#fff;padding:8px 10px;display:flex;align-items:center;gap:8px}
   header h1{font-size:15px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tabs{display:flex;gap:4px}
-  .tabs button{background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:5px 9px;font-size:14px}
+  .tabs button{background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:5px 7px;font-size:13px}
+  .tabs{gap:3px}
+  #ttView,#tripView{overflow:auto;padding:8px}
+  .lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:6px;margin:6px 0 12px}
+  .lgrid button{border:0;border-radius:6px;padding:9px 0;font-weight:700;font-size:15px;background:#14213d;color:#fff}
+  .lgrid button.bus{background:#5b6170}
+  .st{display:flex;gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);font-size:14px}
+  .st:last-child{border-bottom:0}
+  .st .tt{font-variant-numeric:tabular-nums;font-weight:700;min-width:44px}
+  .st .tt small{display:block;font-weight:400;color:var(--mut);font-size:11px}
+  .st.past{opacity:.45}
+  .st.here{background:#fff4d6}
+  .st .dot{width:10px;height:10px;border-radius:50%;border:2px solid #14213d;flex:none}
+  .st.past .dot{background:#14213d}
+  .hours{background:var(--card);border-radius:10px;overflow:hidden}
+  .hr{display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .hr b{min-width:24px}
+  .hr span{display:flex;flex-wrap:wrap;gap:4px 10px}
+  .hr .nx{background:#fca311;border-radius:4px;padding:0 3px}
+  .clk{cursor:pointer}
   #infoCount{display:inline-block;margin-left:3px;font-size:12px;font-weight:700}
   #infoView{overflow:auto;padding:8px}
   .alert{background:#fff;border-radius:10px;margin-bottom:8px;padding:10px;border-left:5px solid var(--acc)}
@@ -98,6 +117,7 @@
     <button id="tHome">Start</button>
     <button id="tStop" class="on">Szukaj</button>
     <button id="tMap">Mapa</button>
+    <button id="tTt">Rozkład</button>
     <button id="tInfo" title="Komunikaty ZTM">⚠<span id="infoCount"></span></button>
     <button id="tSet" title="Ustawienia">⚙</button>
   </div>
@@ -126,6 +146,17 @@
     <div id="infoFilter" class="chips"></div>
     <div id="infoList"></div>
     <div id="infoMeta" class="muted"></div>
+  </section>
+
+  <section id="ttView">
+    <div id="ttHead" class="row"></div>
+    <div id="ttBody"></div>
+  </section>
+
+  <section id="tripView">
+    <div class="row"><button id="tripBack" class="chip">← Wróć</button><b id="tripTitle" style="flex:1"></b></div>
+    <div id="tripInfo" class="muted"></div>
+    <div id="tripList" class="list"></div>
   </section>
 
   <section id="mapView">
@@ -387,7 +418,8 @@ async function loadDeps(){
         veh = 'wóz jeszcze nieznany (rozkład)';
       }
       const el = document.createElement('div');
-      el.className = 'item';
+      el.className = 'item clk';
+      el.onclick = () => openTrip(d, s);
       el.innerHTML = `<span class="ln ${isTram?'':'bus'}">${d.routeShortName}</span>
         <div class="hd"><b>${d.headsign || ''}</b><small>${veh}</small></div>
         <div class="tm">${min <= 0 ? 'teraz' : min + ' min'}<small>${hhmm(t)}${delay ? (delay>0?' +':' ')+delay : ''}</small></div>`;
@@ -460,19 +492,168 @@ function renderShiftLine(){
 
 const notArrival = (d, stop) => norm(d.headsign || '') !== norm(stop.n || '');
 
+// ---------- rozkład jazdy (stopTimes z ZTM) ----------
+API.stopTimes = (date, routeId) => `https://ckan2.multimediagdansk.pl/stopTimes?date=${date}&routeId=${routeId}`;
+const ttCache = new Map();
+const localDate = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+const BASE = Date.UTC(1899, 11, 30);
+function ztmMin(t){             // "1899-12-30T05:32:00" -> minuty od północy dnia kursowania (także po północy)
+  const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(t || ''); if(!m) return null;
+  const days = Math.round((Date.UTC(+m[1], +m[2] - 1, +m[3]) - BASE) / DAY);
+  return days * 1440 + (+m[4]) * 60 + (+m[5]);
+}
+const fmtMin = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+function stopById(id){
+  if(!state.stopIndex || state.stopIndex.size !== state.stops.length) state.stopIndex = new Map(state.stops.map(x => [x.id, x]));
+  return state.stopIndex.get(id);
+}
+async function routeDay(routeId, date){
+  const key = routeId + '|' + date;
+  if(ttCache.has(key)) return ttCache.get(key);
+  const p = (async () => {
+    const data = await getJSON(API.stopTimes(date, routeId), 45000);
+    const rows = (data.stopTimes || []).map(x => ({trip: x.tripId, svc: x.busServiceName, seq: x.stopSequence, stop: x.stopId,
+      t: ztmMin(x.departureTime || x.arrivalTime), pass: !(x.nonpassenger || x.virtual || x.passenger === false && x.nonpassenger)}));
+    rows.sort((a, b) => a.trip - b.trip || String(a.svc).localeCompare(String(b.svc)) || a.t - b.t || a.seq - b.seq);
+    const runs = []; let cur = null;
+    for(const r of rows){
+      if(!cur || r.trip !== cur.trip || r.svc !== cur.svc || r.seq <= cur.lastSeq){ cur = {trip: r.trip, svc: r.svc, stops: [], lastSeq: -1}; runs.push(cur) }
+      cur.stops.push(r); cur.lastSeq = r.seq;
+    }
+    for(const run of runs){ run.start = run.stops[0].t; run.first = run.stops[0].stop; run.last = run.stops[run.stops.length - 1].stop }
+    return runs;
+  })();
+  ttCache.set(key, p);
+  p.catch(() => ttCache.delete(key));
+  return p;
+}
+
+// --- widok jednego kursu (po stuknięciu w odjazd) ---
+state.tripReturn = 'home';
+async function openTrip(d, fromStop){
+  state.tripReturn = state.tab || 'stop';
+  tab('trip');
+  const title = document.getElementById('tripTitle'), info = document.getElementById('tripInfo'), list = document.getElementById('tripList');
+  const vi = d.vehicleCode != null ? vInfo(d.vehicleCode) : null;
+  title.textContent = d.routeShortName + ' → ' + (d.headsign || '');
+  info.innerHTML = (vi ? `<span class="mdl" style="background:${vi.c.color}">${vi.label}</span>#${d.vehicleCode} · ` : '') + 'wczytuję rozkład kursu…';
+  list.innerHTML = '';
+  try{
+    const start = d.scheduledTripStartTime ? new Date(d.scheduledTripStartTime) : null;
+    const date = localDate(start || new Date());
+    const runs = await routeDay(d.routeId, date);
+    const startMin = start ? start.getHours() * 60 + start.getMinutes() : null;
+    const cand = runs.filter(r => r.trip === d.tripId);
+    const run = cand.sort((a, b) => Math.abs((a.start % 1440) - startMin) - Math.abs((b.start % 1440) - startMin))[0];
+    if(!run) throw new Error('nie znalazłem tego kursu w rozkładzie');
+    const delay = d.status === 'REALTIME' && d.delayInSeconds != null ? Math.round(d.delayInSeconds / 60) : 0;
+    const base = new Date(date + 'T00:00:00'); const nowMin = Math.round((Date.now() - base) / 60000);
+    list.innerHTML = run.stops.filter(x => x.pass).map(x => {
+      const st = stopById(x.stop), est = x.t + delay;
+      const here = fromStop && x.stop === fromStop.id;
+      return `<div class="st ${est < nowMin ? 'past' : ''} ${here ? 'here' : ''}"><span class="dot"></span>
+        <span style="flex:1">${esc(st ? st.n + ' ' + st.c : 'przystanek ' + x.stop)}</span>
+        <span class="tt">${fmtMin(est)}${delay ? `<small>plan ${fmtMin(x.t)}</small>` : ''}</span></div>`;
+    }).join('');
+    info.innerHTML = (vi ? `<span class="mdl" style="background:${vi.c.color}">${vi.label}</span>#${d.vehicleCode} · ` : '')
+      + (delay ? `godziny z uwzględnieniem opóźnienia ${delay > 0 ? '+' : ''}${delay} min` : 'godziny według rozkładu');
+    const h = list.querySelector('.here'); if(h) h.scrollIntoView({block: 'center'});
+  }catch(e){
+    info.innerHTML = '<span class="err" style="display:block">Nie udało się wczytać kursu (' + esc(e.message) + ').</span>';
+  }
+}
+document.getElementById('tripBack').onclick = () => tab(state.tripReturn);
+
+// --- zakładka Rozkład: linia → kierunek → przystanek → godziny ---
+state.routes = [];
+state.tt = {};
+async function loadRoutes(){
+  if(state.routes.length) return;
+  try{ state.routes = await fetchJSON('routes.json?d=' + localDate(), 15000) }catch(e){ state.routes = [] }
+}
+const lineSort = (a, b) => (a.t === 'TRAM' ? 0 : 1) - (b.t === 'TRAM' ? 0 : 1) || (parseInt(a.n.replace(/\D/g, '')) || 999) - (parseInt(b.n.replace(/\D/g, '')) || 999) || a.n.localeCompare(b.n);
+async function renderTt(){
+  const head = document.getElementById('ttHead'), body = document.getElementById('ttBody');
+  const t = state.tt;
+  const dayChips = `<button class="chip ${!t.tomorrow ? 'on' : ''}" data-day="0">dziś</button><button class="chip ${t.tomorrow ? 'on' : ''}" data-day="1">jutro</button>`;
+  const date = localDate(new Date(Date.now() + (t.tomorrow ? DAY : 0)));
+  const bindDays = () => head.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { t.tomorrow = b.dataset.day === '1'; renderTt() });
+  if(!t.route){
+    await loadRoutes();
+    head.innerHTML = '<b style="flex:1">Wybierz linię</b>';
+    const tram = state.routes.filter(r => r.t === 'TRAM').sort(lineSort), bus = state.routes.filter(r => r.t !== 'TRAM').sort(lineSort);
+    const grid = (arr, cls) => '<div class="lgrid">' + arr.map(r => `<button class="${cls}" data-r="${esc(r.id)}">${esc(r.n)}</button>`).join('') + '</div>';
+    body.innerHTML = state.routes.length ? '<div class="sect">Tramwaje</div>' + grid(tram, '') + '<div class="sect">Autobusy</div>' + grid(bus, 'bus')
+      : '<div class="err">Lista linii się nie wczytała.</div>';
+    body.querySelectorAll('[data-r]').forEach(b => b.onclick = () => { t.route = state.routes.find(r => r.id === b.dataset.r); renderTt() });
+    return;
+  }
+  const back = (label, fn) => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = '← ' + label; b.onclick = fn; return b };
+  head.innerHTML = ''; 
+  body.innerHTML = '<div class="muted">Wczytuję rozkład linii ' + esc(t.route.n) + '…</div>';
+  let runs;
+  try{ runs = await routeDay(t.route.id, date) }
+  catch(e){ body.innerHTML = '<div class="err">Nie udało się wczytać rozkładu (' + esc(e.message) + ').</div>'; head.append(back('linie', () => { state.tt = {}; renderTt() })); return }
+  // kierunki = grupy kursów kończących się na tym samym przystanku (nazwą)
+  const nm = id => { const x = stopById(id); return x ? x.n : String(id) };
+  const groups = new Map();
+  for(const r of runs){ if(r.stops.filter(x => x.pass).length < 2) continue; const k = nm(r.last); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(r) }
+  if(!t.dir){
+    head.append(back('linie', () => { state.tt = {}; renderTt() }));
+    head.insertAdjacentHTML('beforeend', `<b style="flex:1">Linia ${esc(t.route.n)}</b>` + dayChips); bindDays();
+    const dirs = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
+    body.innerHTML = dirs.length ? '<div class="sect">Kierunek</div><div class="list">' + dirs.map(([k, rs]) =>
+      `<div class="item clk" data-k="${esc(k)}"><span class="ln ${t.route.t === 'TRAM' ? '' : 'bus'}">${esc(t.route.n)}</span><div class="hd"><b>→ ${esc(k)}</b><small>z: ${esc(nm(rs[0].first))} · ${rs.length} kursów</small></div></div>`).join('') + '</div>'
+      : '<div class="muted">Brak kursów w tym dniu.</div>';
+    body.querySelectorAll('[data-k]').forEach(el => el.onclick = () => { t.dir = el.dataset.k; renderTt() });
+    return;
+  }
+  const rs = groups.get(t.dir) || [];
+  if(!t.stop){
+    head.append(back('kierunki', () => { t.dir = null; renderTt() }));
+    head.insertAdjacentHTML('beforeend', `<b style="flex:1">${esc(t.route.n)} → ${esc(t.dir)}</b>` + dayChips); bindDays();
+    // przystanki z najdłuższego wariantu
+    const longest = rs.reduce((a, b) => b.stops.length > a.stops.length ? b : a, rs[0]);
+    body.innerHTML = '<div class="sect">Przystanek</div><div class="list">' + longest.stops.filter(x => x.pass).map(x => {
+      const st = stopById(x.stop);
+      return `<div class="st clk" data-s="${x.stop}"><span class="dot"></span><span style="flex:1">${esc(st ? st.n + ' ' + st.c : x.stop)}</span></div>`;
+    }).join('') + '</div>';
+    body.querySelectorAll('[data-s]').forEach(el => el.onclick = () => { t.stop = +el.dataset.s; renderTt() });
+    return;
+  }
+  head.append(back('przystanki', () => { t.stop = null; renderTt() }));
+  const st = stopById(t.stop);
+  head.insertAdjacentHTML('beforeend', `<b style="flex:1">${esc(t.route.n)} · ${esc(st ? st.n + ' ' + st.c : '')}</b>` + dayChips); bindDays();
+  const times = rs.map(r => r.stops.find(x => x.stop === t.stop && x.pass)).filter(Boolean).map(x => x.t).sort((a, b) => a - b);
+  const uniq = [...new Set(times)];
+  const nowMin = t.tomorrow ? -1 : new Date().getHours() * 60 + new Date().getMinutes();
+  const next = uniq.find(m => m >= nowMin);
+  const byH = new Map();
+  for(const m of uniq){ const h = Math.floor(m / 60) % 24; if(!byH.has(h)) byH.set(h, []); byH.get(h).push(m) }
+  body.innerHTML = uniq.length ? `<div class="sect">Odjazdy w kierunku ${esc(t.dir)} · ${t.tomorrow ? 'jutro' : 'dziś'}</div><div class="hours">` +
+    [...byH.entries()].map(([h, ms]) => `<div class="hr"><b>${String(h).padStart(2, '0')}</b><span>${ms.map(m => `<i class="${m === next ? 'nx' : ''}" style="font-style:normal">${String(m % 60).padStart(2, '0')}</i>`).join('')}</span></div>`).join('') + '</div>'
+    : '<div class="muted">Brak odjazdów z tego przystanku w tym dniu.</div>';
+  const nx = body.querySelector('.nx'); if(nx) nx.scrollIntoView({block: 'center'});
+}
+
 // ---------- strona startowa ----------
 // modele uznawane za wygodne (później do ustawienia przez użytkownika)
 state.comfy = LS.get('kt_comfy', ['swing', 'jazz']);
 state.homeLines = [];
 
-function depRow(d, now){
+state.depRefs = [];
+function depRef(d, stop){ state.depRefs.push({d, stop}); return state.depRefs.length - 1 }
+function bindDepClicks(root){
+  root.querySelectorAll('[data-dep]').forEach(el => el.onclick = e => { e.stopPropagation(); const r = state.depRefs[+el.dataset.dep]; if(r) openTrip(r.d, r.stop) });
+}
+function depRow(d, now, stop){
   const t = new Date(d.estimatedTime || d.theoreticalTime);
   const min = Math.round((t - now) / 60000);
   const vi = d.vehicleCode != null ? vInfo(d.vehicleCode) : null;
   const isTram = vi ? vi.v.type === 'Tramwaj' : Number(d.routeShortName) < 20;
   const veh = vi ? `<span class="mdl" style="background:${vi.c.color}">${vi.label}</span>${vi.v.ac ? 'klima' : ''}`
     : d.vehicleCode != null ? '#' + d.vehicleCode : 'wóz jeszcze nieznany';
-  return `<div class="item"><span class="ln ${isTram ? '' : 'bus'}">${esc(d.routeShortName)}</span>
+  return `<div class="item clk" data-dep="${depRef(d, stop)}"><span class="ln ${isTram ? '' : 'bus'}">${esc(d.routeShortName)}</span>
     <div class="hd"><b>${esc(d.headsign || '')}</b><small>${veh}</small></div>
     <div class="tm">${min <= 0 ? 'teraz' : min + ' min'}<small>${hhmm(t)}</small></div></div>`;
 }
@@ -484,6 +665,7 @@ async function loadHome(){
     return;
   }
   renderShiftLine();
+  state.depRefs = [];
   const favs = orderedFavs();
   const ids = [...box.querySelectorAll('.card')].map(c => c.dataset.id).join(',');
   if(ids !== favs.map(f => String(f.id)).join(','))
@@ -498,7 +680,7 @@ async function loadHome(){
       list.forEach(d => lines.add(String(d.routeShortName)));
       const heads = [...new Set(list.slice(0, 6).map(d => d.headsign).filter(Boolean))].slice(0, 2).join(', ');
       let html = `<div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>${esc(heads)}</small></div>`;
-      html += list.length ? list.slice(0, 3).map(d => depRow(d, now)).join('') : '<div class="muted" style="padding:6px 10px">Brak odjazdów w najbliższym czasie.</div>';
+      html += list.length ? list.slice(0, 3).map(d => depRow(d, now, f)).join('') : '<div class="muted" style="padding:6px 10px">Brak odjazdów w najbliższym czasie.</div>';
       // najbliższy kurs wygodnym modelem, jeśli nie ma go w pierwszej trójce
       const idx = list.findIndex(d => { const vi = d.vehicleCode != null && vInfo(d.vehicleCode); return vi && state.comfy.includes(vi.c.key) });
       if(idx >= 3){
@@ -509,6 +691,7 @@ async function loadHome(){
         html += `<div class="next">W najbliższych kursach nie widać Swinga ani Jazz Duo</div>`;
       }
       card.innerHTML = html;
+      bindDepClicks(card);
     }catch(e){
       card.innerHTML = `<div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>nie udało się pobrać</small></div>`;
     }
@@ -759,7 +942,11 @@ function renderStopAlerts(){
 
 // ---------- zakładki i start ----------
 function tab(which){
-  state.tab = which;
+  if(which !== 'trip') state.tab = which;
+  document.getElementById('tTt').classList.toggle('on', which==='tt');
+  document.getElementById('ttView').classList.toggle('on', which==='tt');
+  document.getElementById('tripView').classList.toggle('on', which==='trip');
+  if(which==='tt') renderTt();
   document.getElementById('tHome').classList.toggle('on', which==='home');
   document.getElementById('homeView').classList.toggle('on', which==='home');
   if(which==='home') loadHome();
@@ -774,6 +961,7 @@ function tab(which){
 }
 document.getElementById('tStop').onclick = () => tab('stop');
 document.getElementById('tHome').onclick = () => tab('home');
+document.getElementById('tTt').onclick = () => tab('tt');
 document.getElementById('homeAdd').onclick = () => { tab('stop'); document.getElementById('q').focus() };
 document.getElementById('tMap').onclick = () => tab('map');
 document.getElementById('tInfo').onclick = () => tab('info');
