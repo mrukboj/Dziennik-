@@ -57,7 +57,7 @@ def from_gtfs():
     tram_stops, any_stops = set(), set()
     for st in rd('stop_times.txt'):
         any_stops.add(st['stop_id'])
-        if trip_type.get(st['trip_id']) == '0':
+        if trip_type.get(st['trip_id']) in ('0', '900', '901', '902', '903', '904', '905', '906'):
             tram_stops.add(st['stop_id'])
     out = []
     for s in rd('stops.txt'):
