@@ -30,6 +30,15 @@
   .alert.open .body{display:block}
   .alert.old{opacity:.6}
   .alert a{color:#1d4ed8}
+  @media (max-width:430px){ header h1{display:none} .tabs{flex:1;justify-content:flex-end} }
+  #homeView{overflow:auto;padding:8px}
+  .card{background:var(--card);border-radius:10px;margin-bottom:8px;overflow:hidden}
+  .card .ch{display:flex;align-items:baseline;gap:8px;padding:8px 10px 4px}
+  .card .ch b{flex:1;font-size:15px}
+  .card .ch small{color:var(--mut);font-size:12px}
+  .card .item{padding:6px 10px}
+  .card .next{font-size:12px;color:var(--mut);padding:6px 10px 8px;border-top:1px solid var(--line)}
+  .addStop{width:100%;border:1px dashed #c8ccd4;background:transparent;border-radius:10px;padding:10px;color:var(--mut);font-size:14px}
   .sect{font-size:12px;font-weight:700;color:var(--mut);margin:10px 2px 6px;text-transform:uppercase;letter-spacing:.03em}
   .sect:first-child{margin-top:2px}
   .okline{background:#e7f6ec;color:#166534;border-radius:8px;padding:8px 10px;font-size:13px}
@@ -80,7 +89,8 @@
 <header>
   <h1>Który tramwaj</h1>
   <div class="tabs">
-    <button id="tStop" class="on">Przystanek</button>
+    <button id="tHome">Start</button>
+    <button id="tStop" class="on">Szukaj</button>
     <button id="tMap">Mapa</button>
     <button id="tInfo" title="Komunikaty ZTM">⚠<span id="infoCount"></span></button>
     <button id="tSet" title="Ustawienia">⚙</button>
@@ -88,6 +98,12 @@
 </header>
 
 <main>
+  <section id="homeView">
+    <div id="homeAlerts"></div>
+    <div id="homeCards"></div>
+    <button id="homeAdd" class="addStop">+ Dodaj przystanek</button>
+  </section>
+
   <section id="stopView" class="on">
     <div class="row"><input id="q" type="search" placeholder="Szukaj przystanku…" autocomplete="off"></div>
     <div id="favs" class="chips"></div>
@@ -370,6 +386,74 @@ async function loadDeps(){
   }
 }
 
+// ---------- strona startowa ----------
+// modele uznawane za wygodne (później do ustawienia przez użytkownika)
+state.comfy = LS.get('kt_comfy', ['swing', 'jazz']);
+state.homeLines = [];
+
+function depRow(d, now){
+  const t = new Date(d.estimatedTime || d.theoreticalTime);
+  const min = Math.round((t - now) / 60000);
+  const vi = d.vehicleCode != null ? vInfo(d.vehicleCode) : null;
+  const isTram = vi ? vi.v.type === 'Tramwaj' : Number(d.routeShortName) < 20;
+  const veh = vi ? `<span class="mdl" style="background:${vi.c.color}">${vi.label}</span>${vi.v.ac ? 'klima' : ''}`
+    : d.vehicleCode != null ? '#' + d.vehicleCode : 'wóz jeszcze nieznany';
+  return `<div class="item"><span class="ln ${isTram ? '' : 'bus'}">${esc(d.routeShortName)}</span>
+    <div class="hd"><b>${esc(d.headsign || '')}</b><small>${veh}</small></div>
+    <div class="tm">${min <= 0 ? 'teraz' : min + ' min'}<small>${hhmm(t)}</small></div></div>`;
+}
+
+async function loadHome(){
+  const box = document.getElementById('homeCards');
+  if(!state.favs.length){
+    box.innerHTML = '<div class="muted">Dodaj ulubione przystanki: wyszukaj przystanek i stuknij gwiazdkę. Pojawią się tutaj z najbliższymi odjazdami.</div>';
+    return;
+  }
+  const ids = [...box.querySelectorAll('.card')].map(c => c.dataset.id).join(',');
+  if(ids !== state.favs.map(f => String(f.id)).join(','))
+    box.innerHTML = state.favs.map(f => `<div class="card" data-id="${f.id}"><div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>wczytuję…</small></div></div>`).join('');
+  const now = Date.now(), lines = new Set();
+  await Promise.all(state.favs.map(async f => {
+    const card = box.querySelector(`.card[data-id="${f.id}"]`);
+    if(!card) return;
+    try{
+      const data = await getJSON(API.deps(f.id), 15000);
+      const list = (data.departures || []).filter(d => new Date(d.estimatedTime || d.theoreticalTime) - now > -60000);
+      list.forEach(d => lines.add(String(d.routeShortName)));
+      const heads = [...new Set(list.slice(0, 6).map(d => d.headsign).filter(Boolean))].slice(0, 2).join(', ');
+      let html = `<div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>${esc(heads)}</small></div>`;
+      html += list.length ? list.slice(0, 3).map(d => depRow(d, now)).join('') : '<div class="muted" style="padding:6px 10px">Brak odjazdów w najbliższym czasie.</div>';
+      // najbliższy kurs wygodnym modelem, jeśli nie ma go w pierwszej trójce
+      const idx = list.findIndex(d => { const vi = d.vehicleCode != null && vInfo(d.vehicleCode); return vi && state.comfy.includes(vi.c.key) });
+      if(idx >= 3){
+        const d = list[idx], vi = vInfo(d.vehicleCode);
+        const min = Math.round((new Date(d.estimatedTime || d.theoreticalTime) - now) / 60000);
+        html += `<div class="next">Najbliższy ${vi.label}: linia ${esc(d.routeShortName)} za ${min} min</div>`;
+      } else if(idx < 0 && list.length){
+        html += `<div class="next">W najbliższych kursach nie widać Swinga ani Jazz Duo</div>`;
+      }
+      card.innerHTML = html;
+    }catch(e){
+      card.innerHTML = `<div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>nie udało się pobrać</small></div>`;
+    }
+    card.onclick = () => { selectStop(f); tab('stop') };
+  }));
+  state.homeLines = [...lines];
+  renderHomeAlerts();
+}
+
+function renderHomeAlerts(){
+  const box = document.getElementById('homeAlerts');
+  if(!box) return;
+  const mine = a => a.lines.some(l => state.homeLines.includes(l));
+  const now = alertsFor('now').filter(a => mine(a) || a.lines.some(isTramLine));
+  const rel = alertsFor('all').filter(a => !a.old && mine(a));
+  let html = now.map(a => `<div class="stopAlert now" data-go="1">⚠ <b>${esc(a.title)}</b> · <u>szczegóły</u></div>`).join('');
+  if(rel.length) html += `<div class="stopAlert" data-go="1">ℹ ${rel.length === 1 ? 'Komunikat' : rel.length + ' komunikaty'} dla Twoich linii · <u>pokaż</u></div>`;
+  box.innerHTML = html;
+  box.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { state.infoMode = 'tram'; tab('info') });
+}
+
 // ---------- mapa ----------
 let map, layer;
 function initMap(){
@@ -523,7 +607,7 @@ async function loadAlerts(){
   list.sort((a, c) => (a.old ? 1 : 0) - (c.old ? 1 : 0) || (a.kind === 'now' ? 0 : 1) - (c.kind === 'now' ? 0 : 1) || (c.from || 0) - (a.from || 0));
   state.alerts = list;
   state.alertsAt = now;
-  renderAlerts(); renderStopAlerts();
+  renderAlerts(); renderStopAlerts(); renderHomeAlerts();
 }
 
 function alertsFor(mode){
@@ -599,6 +683,10 @@ function renderStopAlerts(){
 
 // ---------- zakładki i start ----------
 function tab(which){
+  state.tab = which;
+  document.getElementById('tHome').classList.toggle('on', which==='home');
+  document.getElementById('homeView').classList.toggle('on', which==='home');
+  if(which==='home') loadHome();
   document.getElementById('tStop').classList.toggle('on', which==='stop');
   document.getElementById('tMap').classList.toggle('on', which==='map');
   document.getElementById('tInfo').classList.toggle('on', which==='info');
@@ -609,6 +697,8 @@ function tab(which){
   if(which==='map'){ if(!map) initMap(); setTimeout(() => map.invalidateSize(), 50); loadGps() }
 }
 document.getElementById('tStop').onclick = () => tab('stop');
+document.getElementById('tHome').onclick = () => tab('home');
+document.getElementById('homeAdd').onclick = () => { tab('stop'); document.getElementById('q').focus() };
 document.getElementById('tMap').onclick = () => tab('map');
 document.getElementById('tInfo').onclick = () => tab('info');
 document.getElementById('tSet').onclick = () => { document.getElementById('proxy').value = state.proxy; document.getElementById('dlg').showModal() };
@@ -635,10 +725,14 @@ async function start(){
   renderResults();
   if(f.status === 'rejected') document.getElementById('deps').innerHTML = '<div class="err">Baza pojazdów: ' + corsHint(f.reason) + '</div>';
   renderFavs(); renderStopHead(); loadDeps();
+  if(state.favs.length && !state.tab) tab('home');
   if(state.stopsErr) setTimeout(retryStops, 30000);
 }
 
-setInterval(() => { if(document.visibilityState==='visible' && document.getElementById('stopView').classList.contains('on')) loadDeps() }, 20000);
+setInterval(() => {
+  if(document.visibilityState !== 'visible') return;
+  if(state.tab === 'home') loadHome(); else if(document.getElementById('stopView').classList.contains('on')) loadDeps();
+}, 20000);
 setInterval(() => { if(document.visibilityState==='visible') loadAlerts() }, 2 * 60000);
 setInterval(() => { if(document.visibilityState==='visible' && map && document.getElementById('mapView').classList.contains('on')) loadGps() }, 15000);
 try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', {scope: './'}) }catch(e){}
