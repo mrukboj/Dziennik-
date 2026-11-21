@@ -30,6 +30,11 @@
   .alert.open .body{display:block}
   .alert.old{opacity:.6}
   .alert a{color:#1d4ed8}
+  .sect{font-size:12px;font-weight:700;color:var(--mut);margin:10px 2px 6px;text-transform:uppercase;letter-spacing:.03em}
+  .sect:first-child{margin-top:2px}
+  .okline{background:#e7f6ec;color:#166534;border-radius:8px;padding:8px 10px;font-size:13px}
+  .tabs button.hot{background:#d62828;border-color:#d62828}
+  .stopAlert.now{background:#fde2e2;border-color:#f5a3a3;color:#7f1d1d}
   .stopAlert{background:#fff4d6;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:6px}
   .tabs button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:600}
   main{height:calc(100% - 46px - 22px)}
@@ -94,6 +99,7 @@
   </section>
 
   <section id="infoView">
+    <div id="infoNow"></div>
     <div id="infoFilter" class="chips"></div>
     <div id="infoList"></div>
     <div id="infoMeta" class="muted"></div>
@@ -521,16 +527,40 @@ async function loadAlerts(){
 }
 
 function alertsFor(mode){
-  if(mode === 'all') return state.alerts;
-  if(mode === 'stop') return state.alerts.filter(a => a.lines.some(l => state.stopLines.includes(l)));
-  return state.alerts.filter(a => a.lines.some(isTramLine));
+  if(mode === 'now') return state.alerts.filter(a => a.kind === 'now');
+  if(mode === 'all') return state.alerts.filter(a => a.kind !== 'now');
+  if(mode === 'stop') return state.alerts.filter(a => a.kind !== 'now' && a.lines.some(l => state.stopLines.includes(l)));
+  return state.alerts.filter(a => a.kind !== 'now' && a.lines.some(isTramLine));
+}
+
+function alertCard(a, i){
+  const lines = a.lines.map(l => `<span class="ln ${isTramLine(l) ? '' : 'bus'}">${esc(l)}</span>`).join('');
+  const when = a.alarmFrom ? 'od ' + dayStr(a.alarmFrom) + (a.alarmTo ? ' do ' + dayStr(a.alarmTo) : '')
+    : a.from ? (a.kind === 'now' ? 'od ' : 'opublikowano ') + dayStr(a.from) : '';
+  return `<div class="alert ${a.kind}${a.old ? ' old' : ''}">
+    <div class="lns">${lines}<span class="kind">${a.kind === 'now' ? 'utrudnienie' : 'zmiana trasy'}${a.old ? ' · starszy' : ''}</span></div>
+    <h3>${esc(a.title)}</h3>
+    <div class="meta">${when} · stuknij, aby rozwinąć</div>
+    <div class="body">${a.body || esc(a.summary || '')}${a.url ? `<p><a href="${esc(a.url)}" target="_blank" rel="noopener">Pełny komunikat na ztm.gda.pl</a></p>` : ''}</div>
+  </div>`;
 }
 
 function renderAlerts(){
+  const now = alertsFor('now');
   const tram = alertsFor('tram').filter(a => !a.old).length;
-  document.getElementById('infoCount').textContent = tram ? tram : '';
+  const btn = document.getElementById('tInfo');
+  document.getElementById('infoCount').textContent = now.length ? now.length : tram ? tram : '';
+  btn.classList.toggle('hot', now.length > 0);
+
+  const nowBox = document.getElementById('infoNow');
+  if(!state.alertsAt && !state.alertsErr) nowBox.innerHTML = '';
+  else nowBox.innerHTML = '<div class="sect">Bieżąca sytuacja komunikacyjna</div>' +
+    (now.length ? now.map(alertCard).join('') : '<div class="okline">Brak awarii i nagłych zmian tras.</div>') +
+    '<div class="sect">Komunikaty i zmiany tras</div>';
+
   const f = document.getElementById('infoFilter');
   const modes = [['tram', 'Tramwaje'], ...(state.stop ? [['stop', state.stop.n + ' ' + state.stop.c]] : []), ['all', 'Wszystkie']];
+  if(state.infoMode === 'now') state.infoMode = 'tram';
   f.innerHTML = '';
   for(const [k, label] of modes){
     const b = document.createElement('button');
@@ -544,31 +574,27 @@ function renderAlerts(){
   if(!state.alertsAt && !state.alertsErr) box.innerHTML = '<div class="muted">Wczytuję komunikaty ZTM…</div>';
   else if(state.alertsErr) box.innerHTML = '<div class="err">Nie udało się pobrać komunikatów (' + esc(state.alertsErr) + ').</div>';
   else if(!items.length) box.innerHTML = '<div class="muted">Brak komunikatów w tej grupie.</div>';
-  else box.innerHTML = items.map((a, i) => {
-    const lines = a.lines.map(l => `<span class="ln ${isTramLine(l) ? '' : 'bus'}">${esc(l)}</span>`).join('');
-    const when = a.alarmFrom ? 'od ' + dayStr(a.alarmFrom) + (a.alarmTo ? ' do ' + dayStr(a.alarmTo) : '')
-      : a.from ? 'opublikowano ' + dayStr(a.from) : '';
-    return `<div class="alert ${a.kind}${a.old ? ' old' : ''}" data-i="${i}">
-      <div class="lns">${lines}<span class="kind">${a.kind === 'now' ? 'utrudnienie' : 'zmiana trasy'}${a.old ? ' · starszy' : ''}</span></div>
-      <h3>${esc(a.title)}</h3>
-      <div class="meta">${when} · stuknij, aby rozwinąć</div>
-      <div class="body">${a.body || esc(a.summary || '')}${a.url ? `<p><a href="${esc(a.url)}" target="_blank" rel="noopener">Pełny komunikat na ztm.gda.pl</a></p>` : ''}</div>
-    </div>`;
-  }).join('');
-  box.querySelectorAll('.alert').forEach(el => el.addEventListener('click', e => {
+  else box.innerHTML = items.map(alertCard).join('');
+  document.querySelectorAll('#infoView .alert').forEach(el => el.addEventListener('click', e => {
     if(e.target.closest('a')) return;
     el.classList.toggle('open');
   }));
-  document.getElementById('infoMeta').textContent = state.alertsAt ? 'komunikaty z ' + hhmm(state.alertsAt) + ' · odświeżane co 5 min' : '';
+  document.getElementById('infoMeta').textContent = state.alertsAt ? 'komunikaty z ' + hhmm(state.alertsAt) + ' · bieżąca sytuacja co 2 min' : '';
 }
 
 function renderStopAlerts(){
   const box = document.getElementById('stopAlerts');
+  const hits = a => a.lines.some(l => state.stopLines.includes(l));
+  const now = alertsFor('now').filter(a => hits(a) || a.lines.some(isTramLine));
   const rel = alertsFor('stop').filter(a => !a.old);
-  if(!rel.length){ box.innerHTML = ''; return }
-  const lines = [...new Set(rel.flatMap(a => a.lines).filter(l => state.stopLines.includes(l)))];
-  box.innerHTML = `<div class="stopAlert">⚠ ${rel.length === 1 ? 'Komunikat' : rel.length + ' komunikaty'} dla linii ${lines.map(esc).join(', ')} · <u>pokaż</u></div>`;
-  box.firstChild.onclick = () => { state.infoMode = 'stop'; tab('info') };
+  let html = '';
+  for(const a of now) html += `<div class="stopAlert now" data-go="1">⚠ <b>${esc(a.title)}</b> · <u>szczegóły</u></div>`;
+  if(rel.length){
+    const lines = [...new Set(rel.flatMap(a => a.lines).filter(l => state.stopLines.includes(l)))];
+    html += `<div class="stopAlert" data-go="1">ℹ ${rel.length === 1 ? 'Komunikat' : rel.length + ' komunikaty'} dla linii ${lines.map(esc).join(', ')} · <u>pokaż</u></div>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { state.infoMode = 'stop'; tab('info') });
 }
 
 // ---------- zakładki i start ----------
@@ -613,7 +639,7 @@ async function start(){
 }
 
 setInterval(() => { if(document.visibilityState==='visible' && document.getElementById('stopView').classList.contains('on')) loadDeps() }, 20000);
-setInterval(() => { if(document.visibilityState==='visible') loadAlerts() }, 5 * 60000);
+setInterval(() => { if(document.visibilityState==='visible') loadAlerts() }, 2 * 60000);
 setInterval(() => { if(document.visibilityState==='visible' && map && document.getElementById('mapView').classList.contains('on')) loadGps() }, 15000);
 try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', {scope: './'}) }catch(e){}
 start();
