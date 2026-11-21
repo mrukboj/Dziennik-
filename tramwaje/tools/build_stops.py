@@ -52,7 +52,11 @@ def from_gtfs():
         print(f'GTFS niedostępny: {e}')
         return None
     rd = lambda name: csv.DictReader(io.TextIOWrapper(z.open(name), encoding='utf-8-sig'))
-    route_type = {r['route_id']: r['route_type'] for r in rd('routes.txt')}
+    routes = list(rd('routes.txt'))
+    route_type = {r['route_id']: r['route_type'] for r in routes}
+    globals()['ROUTES'] = [{'id': r['route_id'], 'n': r['route_short_name'], 'ln': r.get('route_long_name', ''),
+                            't': 'TRAM' if r['route_type'] in ('0', '900', '901', '902', '903', '904', '905', '906') else 'BUS'}
+                           for r in routes]
     trip_type = {t['trip_id']: route_type.get(t['route_id']) for t in rd('trips.txt')}
     tram_stops, any_stops = set(), set()
     for st in rd('stop_times.txt'):
@@ -89,3 +93,11 @@ if len(stops) < 500:
 with open(OUT, 'w', encoding='utf-8') as f:
     json.dump({'source': source, 'date': date, 'stops': stops}, f, ensure_ascii=False, separators=(',', ':'))
 print(f'{len(stops)} przystanków, źródło {source} {date}')
+
+# lista linii: zawsze z GTFS (rzadko się zmienia); gdy GTFS niedostępny, zostaje poprzednia
+if 'ROUTES' not in globals():
+    from_gtfs()
+if globals().get('ROUTES'):
+    with open('tramwaje/routes.json', 'w', encoding='utf-8') as f:
+        json.dump(ROUTES, f, ensure_ascii=False, separators=(',', ':'))
+    print(f'{len(ROUTES)} linii')
