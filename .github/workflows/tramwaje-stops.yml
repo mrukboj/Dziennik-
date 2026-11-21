@@ -1,0 +1,29 @@
+name: Tramwaje - lista przystankow
+
+on:
+  schedule:
+    - cron: '17 1 * * *'   # codziennie ok. 2-3 w nocy czasu polskiego
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/tramwaje-stops.yml'
+      - 'tramwaje/tools/build_stops.py'
+
+permissions:
+  contents: write
+
+jobs:
+  stops:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python tramwaje/tools/build_stops.py
+      - name: Zapisz zmiany
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898732+github-actions[bot]@users.noreply.github.com"
+          git add tramwaje/stops.json
+          git diff --cached --quiet || (git commit -m "Tramwaje: aktualizacja listy przystankow" && git push)
