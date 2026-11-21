@@ -40,11 +40,13 @@
   .muted{color:var(--mut);font-size:13px;padding:8px 2px}
   .err{background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px;font-size:13px;margin:6px 0}
   #mapView{position:relative}
+  /* zakładka 0,5 px między kafelkami: na telefonach z ułamkową gęstością ekranu znikają białe szczeliny */
+  #map .leaflet-tile{width:256.5px !important;height:256.5px !important}
   #map{position:absolute;inset:0}
   #mapBar{position:absolute;z-index:500;left:6px;right:6px;top:6px;background:#ffffffee;border-radius:8px;padding:4px 6px;box-shadow:0 1px 4px #0003}
   #mapBar .chips{margin:0}
   #mapInfo{font-size:11px;color:var(--mut);margin-top:2px}
-  .tram{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:1px 6px;border-radius:7px;color:#fff;font:700 13px/19px system-ui;border:2px solid #fff;box-shadow:0 1px 2px #0005}
+  .tram{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:1px 6px;border-radius:7px;color:#fff;font:700 13px/19px system-ui;border:2px solid #fff}
   .tram small{font:500 11px/19px system-ui;opacity:.95}
   .tram i{font-style:normal;display:inline-block;font-size:10px;line-height:10px}
   .leaflet-popup-content{margin:8px 10px;font-size:13px;line-height:1.35}
