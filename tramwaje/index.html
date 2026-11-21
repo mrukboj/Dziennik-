@@ -83,6 +83,12 @@
   footer{height:22px;font-size:10px;color:var(--mut);text-align:center;line-height:22px}
   dialog{border:0;border-radius:10px;max-width:92vw}
   dialog input{width:100%;font-size:14px;padding:6px;margin:6px 0}
+  dialog{width:min(420px,92vw)}
+  .setsec{font-size:12px;font-weight:700;color:var(--mut);margin:12px 0 2px}
+  .roleRow{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:14px}
+  .roleRow span{flex:1}
+  .roleRow select{font-size:14px;padding:4px}
+  .shiftLine{font-size:13px;color:var(--mut);padding:2px 2px 8px}
 </style>
 </head>
 <body>
@@ -99,6 +105,7 @@
 
 <main>
   <section id="homeView">
+    <div id="shiftLine" class="shiftLine"></div>
     <div id="homeAlerts"></div>
     <div id="homeCards"></div>
     <button id="homeAdd" class="addStop">+ Dodaj przystanek</button>
@@ -133,6 +140,12 @@
 
 <dialog id="dlg">
   <b>Ustawienia</b>
+  <div class="setsec">Grafik zmian</div>
+  <div class="muted">Cykl tygodni (1 = 6–14, 2 = 14–22, 3 = 22–6), zmiany od poniedziałku do piątku. Podaj poniedziałek tygodnia, który zaczyna cykl.</div>
+  <div class="row"><input id="schedPat" placeholder="3212" style="width:90px"><input id="schedAnchor" type="date"></div>
+  <div class="setsec">Ulubione przystanki</div>
+  <div id="roleList"></div>
+  <div class="setsec">Pośrednik</div>
   <div class="muted">Adres pośrednika (proxy). Zostaw puste, jeśli dane pobierają się bez niego. Przykład: https://twoj-worker.workers.dev/?url=</div>
   <input id="proxy" placeholder="https://…/?url=">
   <div class="row" style="justify-content:flex-end"><button id="dlgOk">Zapisz</button></div>
@@ -386,6 +399,65 @@ async function loadDeps(){
   }
 }
 
+// ---------- grafik zmian ----------
+state.sched = LS.get('kt_sched', {pattern: '3212', anchor: '2026-11-23'});
+state.roles = LS.get('kt_roles', null);
+const SHIFTS = {1: [6, 14], 2: [14, 22], 3: [22, 6]};
+const SHIFT_NAME = {1: 'ranna 6–14', 2: 'popołudniowa 14–22', 3: 'nocka 22–6'};
+const DAY = 864e5;
+
+function mondayOf(d){ const m = new Date(d.getFullYear(), d.getMonth(), d.getDate()); m.setDate(m.getDate() - ((m.getDay() + 6) % 7)); return m }
+function shiftForDay(day){
+  const pat = (state.sched.pattern || '').replace(/[^123]/g, '');
+  if(!pat || !state.sched.anchor) return null;
+  const [y, mo, da] = state.sched.anchor.split('-').map(Number);
+  const weeks = Math.round((mondayOf(day) - mondayOf(new Date(y, mo - 1, da))) / (7 * DAY));
+  return Number(pat[((weeks % pat.length) + pat.length) % pat.length]);
+}
+function shiftWindows(now){
+  const out = [];
+  for(let k = -1; k <= 7; k++){
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + k);
+    const wd = day.getDay();
+    if(wd === 0 || wd === 6) continue;            // soboty i niedziele wolne
+    const sh = shiftForDay(day); if(!sh) continue;
+    const [a, b] = SHIFTS[sh];
+    const start = new Date(day); start.setHours(a, 0, 0, 0);
+    const end = new Date(day); if(b <= a) end.setDate(end.getDate() + 1); end.setHours(b, 0, 0, 0);
+    out.push({sh, start, end});
+  }
+  return out;
+}
+// 'work' = jesteś w pracy albo tuż po zmianie (pokaż najpierw przystanek przy pracy)
+function commuteState(now = new Date()){
+  const ws = shiftWindows(now);
+  const cur = ws.find(w => now >= w.start && now <= new Date(+w.end + 2 * 3600e3));
+  const next = ws.find(w => w.start > now);
+  return {atWork: !!cur, cur, next};
+}
+const dayName = d => ['niedz.', 'pon.', 'wt.', 'śr.', 'czw.', 'pt.', 'sob.'][d.getDay()];
+function roleOf(f){
+  if(state.roles && state.roles[f.id]) return state.roles[f.id];
+  const n = norm(f.n);
+  return n.includes('czerwony dwor') ? 'home' : n.includes('gleboka') ? 'work' : '';
+}
+function orderedFavs(){
+  const cs = commuteState();
+  const first = cs.atWork ? 'work' : 'home';
+  return [...state.favs].sort((a, b) => (roleOf(a) === first ? 0 : 1) - (roleOf(b) === first ? 0 : 1));
+}
+function renderShiftLine(){
+  const el = document.getElementById('shiftLine'); if(!el) return;
+  const cs = commuteState(), now = new Date();
+  if(cs.cur){
+    el.textContent = now < cs.cur.end ? `W pracy: ${SHIFT_NAME[cs.cur.sh]} · koniec o ${hhmm(cs.cur.end)} · na górze droga do domu`
+      : `Po zmianie · na górze droga do domu`;
+  }else if(cs.next){
+    const same = cs.next.start.toDateString() === now.toDateString();
+    el.textContent = `Następna zmiana: ${same ? 'dziś' : dayName(cs.next.start)} ${hhmm(cs.next.start)} (${SHIFT_NAME[cs.next.sh]}) · na górze droga do pracy`;
+  }else el.textContent = '';
+}
+
 const notArrival = (d, stop) => norm(d.headsign || '') !== norm(stop.n || '');
 
 // ---------- strona startowa ----------
@@ -411,9 +483,11 @@ async function loadHome(){
     box.innerHTML = '<div class="muted">Dodaj ulubione przystanki: wyszukaj przystanek i stuknij gwiazdkę. Pojawią się tutaj z najbliższymi odjazdami.</div>';
     return;
   }
+  renderShiftLine();
+  const favs = orderedFavs();
   const ids = [...box.querySelectorAll('.card')].map(c => c.dataset.id).join(',');
-  if(ids !== state.favs.map(f => String(f.id)).join(','))
-    box.innerHTML = state.favs.map(f => `<div class="card" data-id="${f.id}"><div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>wczytuję…</small></div></div>`).join('');
+  if(ids !== favs.map(f => String(f.id)).join(','))
+    box.innerHTML = favs.map(f => `<div class="card" data-id="${f.id}"><div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>wczytuję…</small></div></div>`).join('');
   const now = Date.now(), lines = new Set();
   await Promise.all(state.favs.map(async f => {
     const card = box.querySelector(`.card[data-id="${f.id}"]`);
@@ -703,10 +777,25 @@ document.getElementById('tHome').onclick = () => tab('home');
 document.getElementById('homeAdd').onclick = () => { tab('stop'); document.getElementById('q').focus() };
 document.getElementById('tMap').onclick = () => tab('map');
 document.getElementById('tInfo').onclick = () => tab('info');
-document.getElementById('tSet').onclick = () => { document.getElementById('proxy').value = state.proxy; document.getElementById('dlg').showModal() };
+document.getElementById('tSet').onclick = () => {
+  document.getElementById('proxy').value = state.proxy;
+  document.getElementById('schedPat').value = state.sched.pattern || '';
+  document.getElementById('schedAnchor').value = state.sched.anchor || '';
+  const rl = document.getElementById('roleList');
+  rl.innerHTML = state.favs.length ? state.favs.map(f => `<div class="roleRow"><span>${esc(f.n)} ${esc(f.c)}</span>
+    <select data-id="${f.id}"><option value="">—</option><option value="home"${roleOf(f)==='home'?' selected':''}>dom</option><option value="work"${roleOf(f)==='work'?' selected':''}>praca</option></select></div>`).join('')
+    : '<div class="muted">Brak ulubionych przystanków.</div>';
+  document.getElementById('dlg').showModal();
+};
 document.getElementById('dlgOk').onclick = () => {
   state.proxy = document.getElementById('proxy').value.trim();
   LS.set('kt_proxy', state.proxy);
+  state.sched = {pattern: document.getElementById('schedPat').value.trim(), anchor: document.getElementById('schedAnchor').value};
+  LS.set('kt_sched', state.sched);
+  const roles = {};
+  document.querySelectorAll('#roleList select').forEach(sel => { roles[sel.dataset.id] = sel.value || 'none' });
+  state.roles = roles; LS.set('kt_roles', roles);
+  if(state.tab === 'home') loadHome();
   document.getElementById('dlg').close();
   start();
 };
