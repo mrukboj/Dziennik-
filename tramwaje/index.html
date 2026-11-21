@@ -353,7 +353,7 @@ async function loadDeps(){
   const box = document.getElementById('deps'), info = document.getElementById('depInfo');
   try{
     const data = await getJSON(API.deps(s.id));
-    const list = data.departures || (data[s.id] && data[s.id].departures) || [];
+    const list = (data.departures || (data[s.id] && data[s.id].departures) || []).filter(d => notArrival(d, s));
     state.stopLines = [...new Set(list.map(d => String(d.routeShortName)))];
     renderStopAlerts();
     box.innerHTML = '';
@@ -385,6 +385,8 @@ async function loadDeps(){
     box.innerHTML = '<div class="err">' + corsHint(e) + '</div>';
   }
 }
+
+const notArrival = (d, stop) => norm(d.headsign || '') !== norm(stop.n || '');
 
 // ---------- strona startowa ----------
 // modele uznawane za wygodne (później do ustawienia przez użytkownika)
@@ -418,7 +420,7 @@ async function loadHome(){
     if(!card) return;
     try{
       const data = await getJSON(API.deps(f.id), 15000);
-      const list = (data.departures || []).filter(d => new Date(d.estimatedTime || d.theoreticalTime) - now > -60000);
+      const list = (data.departures || []).filter(d => new Date(d.estimatedTime || d.theoreticalTime) - now > -60000 && notArrival(d, f));
       list.forEach(d => lines.add(String(d.routeShortName)));
       const heads = [...new Set(list.slice(0, 6).map(d => d.headsign).filter(Boolean))].slice(0, 2).join(', ');
       let html = `<div class="ch"><b>${esc(f.n)} ${esc(f.c)}</b><small>${esc(heads)}</small></div>`;
