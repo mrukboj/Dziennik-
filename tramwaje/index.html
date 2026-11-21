@@ -175,7 +175,7 @@
     </div>
   </section>
 </main>
-<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 21.11 14:40</footer>
+<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 21.11 15:00</footer>
 
 <dialog id="dlg">
   <b>Ustawienia</b>
@@ -446,7 +446,9 @@ async function loadDeps(){
 // Chrome na Androidzie nie pozwala stronom uruchamiać aplikacji, które nie mają linków do otwierania (FALA ich nie ma).
 // Dlatego na Androidzie przycisk otwiera kartę aplikacji w Sklepie Play, gdzie jest przycisk „Otwórz”.
 const FALA_URL = /Android/i.test(navigator.userAgent)
-  ? 'intent://details?id=pl.assecods.innompa.systemfala#Intent;scheme=market;package=com.android.vending;S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=pl.assecods.innompa.systemfala') + ';end'
+  // próba jak przy CANAL+ w StreamGuide: link systemfala.pl skierowany wprost do aplikacji FALA;
+  // jeśli aplikacja go nie przyjmie, Chrome przejdzie do karty FALI w Sklepie Play (jak dotąd)
+  ? 'intent://systemfala.pl/#Intent;scheme=https;package=pl.assecods.innompa.systemfala;S.browser_fallback_url=' + encodeURIComponent('https://play.google.com/store/apps/details?id=pl.assecods.innompa.systemfala') + ';end'
   : 'https://systemfala.pl';
 state.ticket = LS.get('kt_ticket', {from: '2026-11-19', to: '2026-12-18'});
 function ymd(t){ const [y, m, d] = t.split('-').map(Number); return Date.UTC(y, m - 1, d) }
