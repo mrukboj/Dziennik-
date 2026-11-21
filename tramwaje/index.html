@@ -523,7 +523,10 @@ async function routeDay(routeId, date){
       if(!cur || r.trip !== cur.trip || r.svc !== cur.svc || r.seq <= cur.lastSeq){ cur = {trip: r.trip, svc: r.svc, stops: [], lastSeq: -1}; runs.push(cur) }
       cur.stops.push(r); cur.lastSeq = r.seq;
     }
-    for(const run of runs){ run.start = run.stops[0].t; run.first = run.stops[0].stop; run.last = run.stops[run.stops.length - 1].stop }
+    for(const run of runs){
+      const ps = run.stops.filter(x => x.pass), use = ps.length ? ps : run.stops;
+      run.start = run.stops[0].t; run.first = use[0].stop; run.last = use[use.length - 1].stop;
+    }
     return runs;
   })();
   ttCache.set(key, p);
@@ -574,7 +577,9 @@ async function loadRoutes(){
   if(state.routes.length) return;
   try{ state.routes = await fetchJSON('routes.json?d=' + localDate(), 15000) }catch(e){ state.routes = [] }
 }
-const lineSort = (a, b) => (a.t === 'TRAM' ? 0 : 1) - (b.t === 'TRAM' ? 0 : 1) || (parseInt(a.n.replace(/\D/g, '')) || 999) - (parseInt(b.n.replace(/\D/g, '')) || 999) || a.n.localeCompare(b.n);
+const lineSort = (a, b) => (a.t === 'TRAM' ? 0 : 1) - (b.t === 'TRAM' ? 0 : 1)
+  || (/^\d+$/.test(a.n) ? 0 : 1) - (/^\d+$/.test(b.n) ? 0 : 1)       // najpierw zwykłe numery, potem N, T, M
+  || a.n.replace(/\d/g, '').localeCompare(b.n.replace(/\d/g, '')) || (parseInt(a.n.replace(/\D/g, '')) || 0) - (parseInt(b.n.replace(/\D/g, '')) || 0);
 async function renderTt(){
   const head = document.getElementById('ttHead'), body = document.getElementById('ttBody');
   const t = state.tt;
