@@ -44,7 +44,7 @@
   #mapBar{position:absolute;z-index:500;left:6px;right:6px;top:6px;background:#ffffffee;border-radius:8px;padding:4px 6px;box-shadow:0 1px 4px #0003}
   #mapBar .chips{margin:0}
   #mapInfo{font-size:11px;color:var(--mut);margin-top:2px}
-  .tram{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:1px 6px;border-radius:7px;color:#fff;font:700 13px/19px system-ui;border:2px solid #fff;box-shadow:0 1px 3px #0006}
+  .tram{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:1px 6px;border-radius:7px;color:#fff;font:700 13px/19px system-ui;border:2px solid #fff;box-shadow:0 1px 2px #0005}
   .tram small{font:500 11px/19px system-ui;opacity:.95}
   .tram i{font-style:normal;display:inline-block;font-size:10px;line-height:10px}
   .leaflet-popup-content{margin:8px 10px;font-size:13px;line-height:1.35}
@@ -342,7 +342,11 @@ function initMap(){
     maxZoom: 19, attribution: '© OpenStreetMap'
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
-  map.on('zoomend', () => { if(lastGps) drawGps(lastGps) });
+  let lastDetail = null;
+  map.on('zoomend', () => {
+    const z = map.getZoom(), d = z >= 15 ? 2 : z >= 14 ? 1 : 0;
+    if(d !== lastDetail && lastGps){ lastDetail = d; drawGps(lastGps) }
+  });
   const box = document.getElementById('mFilter');
   for(const m of MODELS){
     const b = document.createElement('button');
@@ -384,30 +388,47 @@ async function loadGps(){
   }
 }
 
+const markers = new Map();   // numer taborowy -> {m, html, g, vi}
+function popupHtml(g, vi){
+  const v = vi.v, delay = g.delay != null ? Math.round(g.delay/60) : null;
+  return `<b>${g.routeShortName || '?'} → ${g.headsign || 'zjazd / brak kursu'}</b><br>
+    <span class="mdl" style="background:${vi.c.color}">${vi.label}</span> #${g.vehicleCode}<br>
+    ${v.brand || ''} ${v.model || ''}, ${v.year || '?'}<br>
+    miejsca: ${v.seats ?? '?'} siedz. / ${v.stand ?? '?'} stoj.<br>
+    ${v.ac ? 'klimatyzacja' : 'bez klimatyzacji'} · ${(v.floor || '').replace('Pojazd ','')}<br>
+    ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`;
+}
 function drawGps(data){
   const info = document.getElementById('mapInfo');
-  {
-    layer.clearLayers();
-    let n = 0;
-    for(const g of data.vehicles || []){
-      const vi = vInfo(g.vehicleCode);
-      if(!vi || vi.v.type !== 'Tramwaj') continue;
-      if(!state.mapModels.includes(vi.c.key)) continue;
-      n++;
-      const icon = L.divIcon({className:'', iconSize:[0,0], iconAnchor:[0,0], html: tramLabel(g, vi)});
-      const delay = g.delay != null ? Math.round(g.delay/60) : null;
-      const v = vi.v;
-      L.marker([g.lat, g.lon], {icon}).addTo(layer).bindPopup(
-        `<b>${g.routeShortName || '?'} → ${g.headsign || 'zjazd / brak kursu'}</b><br>
-         <span class="mdl" style="background:${vi.c.color}">${vi.label}</span> #${g.vehicleCode}<br>
-         ${v.brand || ''} ${v.model || ''}, ${v.year || '?'}<br>
-         miejsca: ${v.seats ?? '?'} siedz. / ${v.stand ?? '?'} stoj.<br>
-         ${v.ac ? 'klimatyzacja' : 'bez klimatyzacji'} · ${(v.floor || '').replace('Pojazd ','')}<br>
-         ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`);
+  const seen = new Set();
+  let n = 0;
+  for(const g of data.vehicles || []){
+    const vi = vInfo(g.vehicleCode);
+    if(!vi || vi.v.type !== 'Tramwaj') continue;
+    if(!state.mapModels.includes(vi.c.key)) continue;
+    n++;
+    const code = String(g.vehicleCode);
+    seen.add(code);
+    const html = tramLabel(g, vi);
+    let rec = markers.get(code);
+    if(!rec){
+      const m = L.marker([g.lat, g.lon], {icon: L.divIcon({className:'', iconSize:[0,0], iconAnchor:[0,0], html})}).addTo(layer);
+      rec = {m, html};
+      // treść kartki tworzona dopiero po kliknięciu
+      m.bindPopup(() => popupHtml(rec.g, rec.vi));
+      markers.set(code, rec);
+    }else{
+      const ll = rec.m.getLatLng();
+      if(ll.lat !== g.lat || ll.lng !== g.lon) rec.m.setLatLng([g.lat, g.lon]);
+      if(rec.html !== html){ rec.m.setIcon(L.divIcon({className:'', iconSize:[0,0], iconAnchor:[0,0], html})); rec.html = html }
     }
-    const age = Math.round((Date.now() - new Date(data.lastUpdate)) / 60000);
-    info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
+    rec.g = g; rec.vi = vi;
   }
+  for(const [code, rec] of markers){
+    if(!seen.has(code)){ layer.removeLayer(rec.m); markers.delete(code) }
+  }
+  const age = Math.round((Date.now() - new Date(data.lastUpdate)) / 60000);
+  info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
 }
 
 // ---------- zakładki i start ----------
