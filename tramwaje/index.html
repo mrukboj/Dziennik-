@@ -443,7 +443,10 @@ async function loadDeps(){
 }
 
 // ---------- bilet miesięczny (wpisywany ręcznie) ----------
-const FALA_URL = 'https://systemfala.pl';
+// Android: otwiera aplikację System FALA (pakiet ze Sklepu Play); gdy jej nie ma, Chrome otworzy stronę systemfala.pl
+const FALA_URL = /Android/i.test(navigator.userAgent)
+  ? 'intent://open#Intent;package=pl.assecods.innompa.systemfala;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url=' + encodeURIComponent('https://systemfala.pl') + ';end'
+  : 'https://systemfala.pl';
 state.ticket = LS.get('kt_ticket', {from: '2026-11-19', to: '2026-12-18'});
 function ymd(t){ const [y, m, d] = t.split('-').map(Number); return Date.UTC(y, m - 1, d) }
 function renderTicket(){
@@ -459,7 +462,7 @@ function renderTicket(){
     else{ txt = `Bilet: jeszcze ${left} ${left === 1 ? 'dzień' : 'dni'}<small>ważny do ${to}</small>`; if(left <= 3) cls = 'warn' }
   }
   el.className = 'ticketBar ' + cls;
-  el.innerHTML = `<span class="tk">${txt}</span><a class="fala" href="${FALA_URL}" target="_blank" rel="noopener">FALA ↗</a>`;
+  el.innerHTML = `<span class="tk">${txt}</span><a class="fala" href="${FALA_URL}" rel="noopener">FALA ↗</a>`;
 }
 
 // ---------- grafik zmian ----------
