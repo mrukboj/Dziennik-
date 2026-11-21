@@ -132,8 +132,13 @@ const FALLBACK_PROXIES = [
 ];
 const hostRoute = {}; // host -> 'direct' | indeks pośrednika
 
-async function fetchJSON(u){
-  const r = await fetch(u);
+async function fetchJSON(u, ms = 20000){
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  let r;
+  try{ r = await fetch(u, {signal: ctl.signal}) }
+  catch(e){ throw new Error(e.name === 'AbortError' ? 'przekroczony czas' : e.message) }
+  finally{ clearTimeout(timer) }
   if(!r.ok) throw new Error('HTTP ' + r.status);
   const t = await r.text();
   if(/^\s*</.test(t)) throw new Error('odpowiedź nie jest JSON-em');
@@ -207,6 +212,14 @@ async function loadStops(){
   try{ localStorage.removeItem('kt_stops') }catch(e){}   // stara, mogła zapisać niepełną listę
   const cached = LS.get('kt_stops2', null);
   if(cached && cached.d === today && cached.s.length > 500){ state.stops = cached.s; return }
+  try{
+    const local = await fetchJSON('stops.json?d=' + today, 15000);
+    if(local.stops && local.stops.length > 500){
+      state.stops = local.stops;
+      LS.set('kt_stops2', {d: today, s: local.stops});
+      return;
+    }
+  }catch(e){}
   const data = await getJSON(API.stops);
   const d = new Date(), local = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const keys = Object.keys(data).filter(k => data[k] && Array.isArray(data[k].stops));
