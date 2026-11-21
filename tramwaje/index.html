@@ -339,9 +339,12 @@ let map, layer;
 function initMap(){
   map = L.map('map', {zoomControl:false}).setView([54.37, 18.62], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19, attribution: '© OpenStreetMap'
+    maxZoom: 19, attribution: '© OpenStreetMap', keepBuffer: 4
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
+  // podczas przesuwania palcem nie przerysowujemy tramwajów, robimy to po puszczeniu
+  map.on('movestart', () => { state.moving = true });
+  map.on('moveend', () => { state.moving = false; if(state.pendingGps){ const d = state.pendingGps; state.pendingGps = null; drawGps(d) } });
   // gdy zmienia się wysokość ekranu (np. chowa się pasek adresu), mapa musi przeliczyć swój rozmiar
   try{ new ResizeObserver(() => map.invalidateSize({pan:false})).observe(document.getElementById('map')) }catch(e){}
   window.addEventListener('resize', () => map.invalidateSize({pan:false}));
@@ -402,6 +405,7 @@ function popupHtml(g, vi){
     ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`;
 }
 function drawGps(data){
+  if(state.moving){ state.pendingGps = data; return }
   const info = document.getElementById('mapInfo');
   const seen = new Set();
   let n = 0;
