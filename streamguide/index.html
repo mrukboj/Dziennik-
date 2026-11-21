@@ -104,7 +104,7 @@ a{color:var(--acc)}
   <div class="tg"><span>Tylko seriale z USA</span><input type="checkbox" id="optUS"></div>
   <div class="btns"><button class="btn pri" id="saveBtn">Zapisz i odśwież</button><button class="btn" id="closeSet">Zamknij</button></div>
   <p class="small">Daty odcinków to daty emisji z TMDB, zwykle premiera w USA. W Polsce odcinek bywa dzień później. Ten produkt korzysta z API TMDB, ale nie jest przez TMDB zatwierdzony.</p>
-  <p class="small">Wersja 7 (horror w serialach)</p>
+  <p class="small">Wersja 8 (CANAL+ przez wyniki canalplus.com)</p>
 </div></div></div>
 
 <script>
@@ -288,7 +288,7 @@ const APPS={
 };
 const APPS_BY_NAME=[
  [/netflix/i,8],[/hbo|^max$/i,1899],[/disney/i,337],[/prime video/i,119],[/apple tv/i,350],[/skyshowtime/i,1773],
- [/canal/i,{pk:'com.canal.android.canal',u:q=>'https://www.canalplus.com/pl/'}]
+ [/canal/i,{pk:'com.canal.android.canal',plain:true,u:q=>'https://www.google.com/search?q='+encodeURIComponent('site:canalplus.com/pl ')+q}]
 ];
 function findApp(pid){
   if(APPS[pid])return APPS[pid];
@@ -320,7 +320,7 @@ function appUrl(pid,it){
   const a=findApp(pid),q=encodeURIComponent(title),g='https://www.google.com/search?q='+encodeURIComponent(title+' '+((provById(pid)||{}).name||''));
   if(!a)return g;
   if(!a.u)return isAndroid?'intent:#Intent;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(g)+';end':g;
-  return wrap(pid,a.u(q));
+  return a.plain?a.u(q):wrap(pid,a.u(q));
 }
 const openApp=(pid,it)=>{location.href=appUrl(pid,it)};
 async function wdFormats(){
