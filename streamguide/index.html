@@ -21,6 +21,8 @@ header{position:sticky;top:0;z-index:20;background:rgba(11,13,18,.94);backdrop-f
 .chip{flex:none;display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line);background:var(--s1);font-size:13px;white-space:nowrap}
 .chip.on{background:var(--acc);color:#16130a;border-color:var(--acc);font-weight:600}
 .chip img{width:20px;height:20px;border-radius:5px}
+.sel{appearance:none;-webkit-appearance:none;font:inherit;font-size:13px;color:inherit;max-width:60vw}
+.sel.on{color:#16130a}
 .pchip{padding:0 8px}.pchip.on{background:var(--s2);color:var(--ink);border-color:var(--acc)}
 #bar{height:2px;background:var(--acc);width:0;transition:width .2s}
 #msg{padding:10px 14px;color:var(--mut);font-size:13px;display:none}
@@ -102,7 +104,7 @@ a{color:var(--acc)}
   <div class="tg"><span>Tylko seriale z USA</span><input type="checkbox" id="optUS"></div>
   <div class="btns"><button class="btn pri" id="saveBtn">Zapisz i odśwież</button><button class="btn" id="closeSet">Zamknij</button></div>
   <p class="small">Daty odcinków to daty emisji z TMDB, zwykle premiera w USA. W Polsce odcinek bywa dzień później. Ten produkt korzysta z API TMDB, ale nie jest przez TMDB zatwierdzony.</p>
-  <p class="small">Wersja 5 (linki do stron tytułów)</p>
+  <p class="small">Wersja 6 (gatunki)</p>
 </div></div></div>
 
 <script>
@@ -174,7 +176,7 @@ async function tvItems(id,discProv,fromDisc){
   }
   const byDate={};
   for(const e of eps)(byDate[e.air_date]=byDate[e.air_date]||[]).push({s:e.season_number,e:e.episode_number,n:e.name,ty:e.episode_type,ov:e.overview});
-  return Object.entries(byDate).map(([date,es])=>({k:'tv',id,date,title:d.name,orig:d.original_name,poster:d.poster_path,bd:d.backdrop_path,ov:d.overview,vote:d.vote_average,pop:d.popularity,genres:(d.genres||[]).map(g=>g.id),origin:d.origin_country||[],prov,fromDisc,eps:es.sort((a,b)=>a.s-b.s||a.e-b.e)}));
+  return Object.entries(byDate).map(([date,es])=>({k:'tv',id,date,title:d.name,orig:d.original_name,poster:d.poster_path,bd:d.backdrop_path,ov:d.overview,vote:d.vote_average,pop:d.popularity,genres:(d.genres||[]).map(g=>g.id),origin:d.origin_country||[],lang:d.original_language,prov,fromDisc,eps:es.sort((a,b)=>a.s-b.s||a.e-b.e)}));
 }
 
 async function fetchAll(force){
@@ -223,15 +225,38 @@ async function fetchAll(force){
   }finally{loading=false}
 }
 
+const asian=it=>(it.origin||[]).some(c=>['JP','KR','CN','TW'].includes(c))||['ja','ko','zh'].includes(it.lang);
+const anim=it=>it.genres.includes(16);
+const kidsG=it=>it.k==='tv'?it.genres.includes(10762):it.genres.includes(10751);
+const has=ids=>it=>it.genres.some(g=>ids.includes(g));
+const GENRES=[
+ ['anime','Anime',it=>anim(it)&&asian(it)],
+ ['anim-ad','Animacja dla dorosłych',it=>anim(it)&&!asian(it)&&!kidsG(it)],
+ ['anim-kid','Animacja dla dzieci',it=>anim(it)&&!asian(it)&&kidsG(it)],
+ ['com','Komedia',it=>has([35])(it)&&!anim(it)],
+ ['dra','Dramat',has([18])],
+ ['cri','Kryminał',has([80])],
+ ['mys','Tajemnica',has([9648])],
+ ['sf','Sci-Fi i fantasy',has([10765,878,14])],
+ ['act','Akcja i przygoda',has([10759,28,12])],
+ ['hor','Horror',has([27])],
+ ['thr','Thriller',has([53])],
+ ['doc','Dokument',has([99])],
+ ['rea','Reality',has([10764])],
+ ['war','Wojenny',has([10768,10752])],
+ ['fam','Familijny',it=>has([10751,10762])(it)&&!anim(it)]
+];
 const isFol=id=>S.follow.some(f=>f.id===id);
-function visible(){
+function visible(noGenre){
+  const G=!noGenre&&view.genre&&GENRES.find(g=>g[0]===view.genre);
   return items.filter(it=>{
+    if(G&&!G[2](it))return false;
     if(view.type==='tv'&&it.k!=='tv')return false;
     if(view.type==='mv'&&it.k!=='mv')return false;
     if(view.type==='fol'&&!(it.k==='tv'&&isFol(it.id)))return false;
     if(view.type!=='fol'&&!it.fromDisc)return false;
     if(view.plat&&!it.prov.includes(view.plat))return false;
-    if(S.anime&&it.genres.includes(16)&&((it.origin||[]).includes('JP')||it.lang==='ja'))return false;
+    if(S.anime&&view.genre!=='anime'&&anim(it)&&asian(it))return false;
     if(S.us&&it.k==='tv'&&!isFol(it.id)&&!(it.origin||[]).includes('US'))return false;
     return true;
   }).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(isFol(b.id)-isFol(a.id))||(b.pop-a.pop));
@@ -350,7 +375,9 @@ function renderList(){
 }
 function renderChips(){
   const T=[['all','Wszystko'],['tv','Seriale'],['mv','Filmy'],['fol','★ Obserwowane']];
-  $('#types').innerHTML=T.map(([k,n])=>`<button class="chip${view.type===k?' on':''}" data-t="${k}">${n}</button>`).join('');
+  const base=visible(true);
+  const opts=GENRES.map(g=>[g,base.filter(g[2]).length]).filter(([g,n])=>n||view.genre===g[0]);
+  $('#types').innerHTML=T.map(([k,n])=>`<button class="chip${view.type===k?' on':''}" data-t="${k}">${n}</button>`).join('')+`<select class="chip sel${view.genre?' on':''}" id="gsel" aria-label="Gatunek"><option value="">Gatunek ▾</option>${opts.map(([g,n])=>`<option value="${g[0]}"${view.genre===g[0]?' selected':''}>${g[1]} (${n})</option>`).join('')}</select>`;
   $('#plats').innerHTML=`<button class="chip pchip${!view.plat?' on':''}" data-p="">Wszystkie</button>`+selProv().map(id=>{const p=provById(id);return p?`<button class="chip pchip${view.plat===id?' on':''}" data-p="${id}">${logo(id)}${esc(p.name)}</button>`:''}).join('');
   $('#followBox').style.display=view.type==='fol'?'block':'none';
   $('#flist').innerHTML=S.follow.map(f=>`<button class="chip" data-un="${f.id}">${esc(f.name)} ✕</button>`).join('');
@@ -418,6 +445,7 @@ $('#saveBtn').onclick=()=>{
 };
 $('#closeSet').onclick=()=>$('#settings').classList.remove('open');
 for(const id of['detail','settings'])$('#'+id).addEventListener('click',e=>{if(e.target.id===id)e.target.classList.remove('open')});
+$('#types').addEventListener('change',e=>{if(e.target.id==='gsel'){view.genre=e.target.value||null;renderAll();toToday()}});
 $('#types').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;view.type=b.dataset.t;renderAll();toToday()});
 $('#plats').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;view.plat=+b.dataset.p||null;renderAll();toToday()});
 $('#list').addEventListener('click',e=>{const o=e.target.closest('[data-open]');if(o){e.stopPropagation();const it=shown[+o.closest('.card').dataset.i];openApp(+o.dataset.open,it);return}const b=e.target.closest('.card');if(b)openDetail(shown[+b.dataset.i])});
