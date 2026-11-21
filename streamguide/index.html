@@ -260,10 +260,21 @@ const APPS={
  350:{u:q=>'https://tv.apple.com/pl/search?term='+q},
  1773:{u:q=>'https://www.skyshowtime.com/pl'}
 };
+const APPS_BY_NAME=[
+ [/netflix/i,8],[/hbo|^max$/i,1899],[/disney/i,337],[/prime video/i,119],[/apple tv/i,350],[/skyshowtime/i,1773],
+ [/canal/i,{pk:'com.canal.android.canal'}]
+];
+function findApp(pid){
+  if(APPS[pid])return APPS[pid];
+  const n=(provById(pid)||{}).name||'';
+  for(const[re,v]of APPS_BY_NAME)if(re.test(n))return typeof v==='number'?APPS[v]:v;
+  return null;
+}
 const isAndroid=/Android/i.test(navigator.userAgent);
 function appUrl(pid,title){
-  const a=APPS[pid],q=encodeURIComponent(title);
-  if(!a)return 'https://www.google.com/search?q='+encodeURIComponent(title+' '+((provById(pid)||{}).name||''));
+  const a=findApp(pid),q=encodeURIComponent(title),g='https://www.google.com/search?q='+encodeURIComponent(title+' '+((provById(pid)||{}).name||''));
+  if(!a)return g;
+  if(!a.u)return isAndroid?'intent:#Intent;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(g)+';end':g;
   const web=a.u(q);
   if(isAndroid&&a.pk)return 'intent://'+web.replace(/^https:\/\//,'')+'#Intent;scheme=https;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(web)+';end';
   return web;
