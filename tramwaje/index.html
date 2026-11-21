@@ -40,8 +40,8 @@
   .muted{color:var(--mut);font-size:13px;padding:8px 2px}
   .err{background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px;font-size:13px;margin:6px 0}
   #mapView{position:relative}
-  /* zakładka 0,5 px między kafelkami: na telefonach z ułamkową gęstością ekranu znikają białe szczeliny */
-  #map .leaflet-tile{width:256.5px !important;height:256.5px !important}
+  /* zakładka 0,5 px między kafelkami; tryb mieszania normalny, bo domyślny w Leaflet (plus-lighter) rozjaśnia miejsce zakładki na biało */
+  #map .leaflet-tile{width:256.5px !important;height:256.5px !important;mix-blend-mode:normal !important}
   #map{position:absolute;inset:0}
   #mapBar{position:absolute;z-index:500;left:6px;right:6px;top:6px;background:#ffffffee;border-radius:8px;padding:4px 6px;box-shadow:0 1px 4px #0003}
   #mapBar .chips{margin:0}
