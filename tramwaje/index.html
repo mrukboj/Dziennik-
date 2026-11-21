@@ -12,9 +12,24 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;height:100dvh;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
   header{position:sticky;top:0;z-index:1000;background:var(--ink);color:#fff;padding:8px 10px;display:flex;align-items:center;gap:8px}
-  header h1{font-size:16px;margin:0;flex:1}
+  header h1{font-size:15px;margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tabs{display:flex;gap:4px}
-  .tabs button{background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:5px 10px;font-size:14px}
+  .tabs button{background:transparent;border:1px solid #ffffff55;color:#fff;border-radius:6px;padding:5px 9px;font-size:14px}
+  #infoCount{display:inline-block;margin-left:3px;font-size:12px;font-weight:700}
+  #infoView{overflow:auto;padding:8px}
+  .alert{background:#fff;border-radius:10px;margin-bottom:8px;padding:10px;border-left:5px solid var(--acc)}
+  .alert.now{border-left-color:#d62828}
+  .alert h3{font-size:15px;margin:6px 0 2px;line-height:1.3}
+  .alert .lns{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+  .alert .lns .ln{min-width:26px;font-size:12px;padding:2px 5px}
+  .alert .kind{font-size:11px;font-weight:700;text-transform:none;color:#d62828;margin-left:4px}
+  .alert.route .kind{color:#b45309}
+  .alert .meta{font-size:12px;color:var(--mut)}
+  .alert .body{display:none;font-size:14px;line-height:1.45;margin-top:6px}
+  .alert .body p{margin:0 0 6px}
+  .alert.open .body{display:block}
+  .alert a{color:#1d4ed8}
+  .stopAlert{background:#fff4d6;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:6px}
   .tabs button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:600}
   main{height:calc(100% - 46px - 22px)}
   section{display:none;height:100%}
@@ -61,6 +76,7 @@
   <div class="tabs">
     <button id="tStop" class="on">Przystanek</button>
     <button id="tMap">Mapa</button>
+    <button id="tInfo" title="Komunikaty ZTM">⚠<span id="infoCount"></span></button>
     <button id="tSet" title="Ustawienia">⚙</button>
   </div>
 </header>
@@ -71,8 +87,15 @@
     <div id="favs" class="chips"></div>
     <div id="results" class="list"></div>
     <div id="stopHead" class="row" style="margin-top:8px"></div>
+    <div id="stopAlerts"></div>
     <div id="deps" class="list"></div>
     <div id="depInfo" class="muted"></div>
+  </section>
+
+  <section id="infoView">
+    <div id="infoFilter" class="chips"></div>
+    <div id="infoList"></div>
+    <div id="infoMeta" class="muted"></div>
   </section>
 
   <section id="mapView">
@@ -97,6 +120,8 @@ const API = {
   gps: 'https://ckan2.multimediagdansk.pl/gpsPositions?v=2',
   deps: id => 'https://ckan2.multimediagdansk.pl/departures?stopId=' + id,
   fleet: 'https://files.cloudgdansk.pl/d/otwarte-dane/ztm/baza-pojazdow.json?v=2',
+  bsk: 'https://files.cloudgdansk.pl/d/otwarte-dane/ztm/bsk.json',
+  znt: 'https://files.cloudgdansk.pl/d/otwarte-dane/ztm/znt.json?v=1',
   stops: 'https://ckan.multimediagdansk.pl/dataset/c24aa637-3619-4dc2-a171-a23eec8f2172/resource/4c4025f0-01bf-41f7-a39f-d156d201b82b/download/stops.json'
 };
 
@@ -306,6 +331,8 @@ async function loadDeps(){
   try{
     const data = await getJSON(API.deps(s.id));
     const list = data.departures || (data[s.id] && data[s.id].departures) || [];
+    state.stopLines = [...new Set(list.map(d => String(d.routeShortName)))];
+    renderStopAlerts();
     box.innerHTML = '';
     if(!list.length){ box.innerHTML = '<div class="muted">Brak odjazdów w najbliższym czasie.</div>' }
     const now = Date.now();
@@ -442,16 +469,115 @@ function drawGps(data){
   info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
 }
 
+// ---------- komunikaty ZTM ----------
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const isTramLine = l => /^T?\d{1,2}$/.test(l) && parseInt(l.replace('T','')) < 20;
+const ztmDate = t => t ? new Date(t.replace(' ', 'T')) : null;
+const dayStr = d => d.toLocaleDateString('pl-PL', {day:'numeric', month:'numeric'}) + ' ' + hhmm(d);
+state.alerts = [];
+state.infoMode = 'tram';
+state.stopLines = [];
+
+function cleanHtml(html){
+  // treść z ZTM to HTML z Worda: zostawiamy sam tekst akapitów i punktów
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  const out = [];
+  doc.body.querySelectorAll('p, li, h1, h2, h3, h4').forEach(el => {
+    if(el.querySelector('p, li')) return;
+    const t = el.textContent.replace(/\s+/g, ' ').trim();
+    if(t) out.push('<p>' + (el.tagName === 'LI' ? '• ' : '') + esc(t) + '</p>');
+  });
+  if(!out.length){ const t = doc.body.textContent.trim(); if(t) out.push('<p>' + esc(t) + '</p>') }
+  return out.join('');
+}
+
+async function loadAlerts(){
+  const [b, z] = await Promise.allSettled([getJSON(API.bsk), getJSON(API.znt)]);
+  const now = new Date(), seen = new Set(), list = [];
+  const add = (r, kind) => {
+    for(const x of (r.status === 'fulfilled' && r.value.results) || []){
+      if(seen.has(x.url || x.title)) continue;
+      const from = ztmDate(x.publishFrom), to = ztmDate(x.publishTo);
+      if(from && from > now) continue;
+      if(to && to < now) continue;
+      seen.add(x.url || x.title);
+      list.push({kind, lines: x.lineNumbers || [], title: x.title, summary: x.summary, body: cleanHtml(x.content),
+        url: x.url, from, alarmFrom: ztmDate(x.alarmDateFrom), alarmTo: ztmDate(x.alarmDateTo)});
+    }
+  };
+  add(b, 'now'); add(z, 'route');
+  if(b.status === 'rejected' && z.status === 'rejected'){ state.alertsErr = b.reason.message; return renderAlerts() }
+  state.alertsErr = '';
+  list.sort((a, c) => (a.kind === 'now' ? 0 : 1) - (c.kind === 'now' ? 0 : 1) || (c.from || 0) - (a.from || 0));
+  state.alerts = list;
+  state.alertsAt = now;
+  renderAlerts(); renderStopAlerts();
+}
+
+function alertsFor(mode){
+  if(mode === 'all') return state.alerts;
+  if(mode === 'stop') return state.alerts.filter(a => a.lines.some(l => state.stopLines.includes(l)));
+  return state.alerts.filter(a => a.lines.some(isTramLine));
+}
+
+function renderAlerts(){
+  const tram = alertsFor('tram').length;
+  document.getElementById('infoCount').textContent = tram ? tram : '';
+  const f = document.getElementById('infoFilter');
+  const modes = [['tram', 'Tramwaje'], ...(state.stop ? [['stop', state.stop.n + ' ' + state.stop.c]] : []), ['all', 'Wszystkie']];
+  f.innerHTML = '';
+  for(const [k, label] of modes){
+    const b = document.createElement('button');
+    b.className = 'chip' + (state.infoMode === k ? ' on' : '');
+    b.textContent = label + ' (' + alertsFor(k).length + ')';
+    b.onclick = () => { state.infoMode = k; renderAlerts() };
+    f.appendChild(b);
+  }
+  const box = document.getElementById('infoList');
+  const items = alertsFor(state.infoMode);
+  if(state.alertsErr) box.innerHTML = '<div class="err">Nie udało się pobrać komunikatów (' + esc(state.alertsErr) + ').</div>';
+  else if(!items.length) box.innerHTML = '<div class="muted">Brak komunikatów w tej grupie.</div>';
+  else box.innerHTML = items.map((a, i) => {
+    const lines = a.lines.map(l => `<span class="ln ${isTramLine(l) ? '' : 'bus'}">${esc(l)}</span>`).join('');
+    const when = a.alarmFrom ? 'od ' + dayStr(a.alarmFrom) + (a.alarmTo ? ' do ' + dayStr(a.alarmTo) : '')
+      : a.from ? 'opublikowano ' + dayStr(a.from) : '';
+    return `<div class="alert ${a.kind}" data-i="${i}">
+      <div class="lns">${lines}<span class="kind">${a.kind === 'now' ? 'utrudnienie' : 'zmiana trasy'}</span></div>
+      <h3>${esc(a.title)}</h3>
+      <div class="meta">${when} · stuknij, aby rozwinąć</div>
+      <div class="body">${a.body || esc(a.summary || '')}${a.url ? `<p><a href="${esc(a.url)}" target="_blank" rel="noopener">Pełny komunikat na ztm.gda.pl</a></p>` : ''}</div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.alert').forEach(el => el.addEventListener('click', e => {
+    if(e.target.closest('a')) return;
+    el.classList.toggle('open');
+  }));
+  document.getElementById('infoMeta').textContent = state.alertsAt ? 'komunikaty z ' + hhmm(state.alertsAt) + ' · odświeżane co 5 min' : '';
+}
+
+function renderStopAlerts(){
+  const box = document.getElementById('stopAlerts');
+  const rel = alertsFor('stop');
+  if(!rel.length){ box.innerHTML = ''; return }
+  const lines = [...new Set(rel.flatMap(a => a.lines).filter(l => state.stopLines.includes(l)))];
+  box.innerHTML = `<div class="stopAlert">⚠ ${rel.length === 1 ? 'Komunikat' : rel.length + ' komunikaty'} dla linii ${lines.map(esc).join(', ')} · <u>pokaż</u></div>`;
+  box.firstChild.onclick = () => { state.infoMode = 'stop'; tab('info') };
+}
+
 // ---------- zakładki i start ----------
 function tab(which){
   document.getElementById('tStop').classList.toggle('on', which==='stop');
   document.getElementById('tMap').classList.toggle('on', which==='map');
+  document.getElementById('tInfo').classList.toggle('on', which==='info');
+  document.getElementById('infoView').classList.toggle('on', which==='info');
+  if(which==='info') renderAlerts();
   document.getElementById('stopView').classList.toggle('on', which==='stop');
   document.getElementById('mapView').classList.toggle('on', which==='map');
   if(which==='map'){ if(!map) initMap(); setTimeout(() => map.invalidateSize(), 50); loadGps() }
 }
 document.getElementById('tStop').onclick = () => tab('stop');
 document.getElementById('tMap').onclick = () => tab('map');
+document.getElementById('tInfo').onclick = () => tab('info');
 document.getElementById('tSet').onclick = () => { document.getElementById('proxy').value = state.proxy; document.getElementById('dlg').showModal() };
 document.getElementById('dlgOk').onclick = () => {
   state.proxy = document.getElementById('proxy').value.trim();
@@ -474,11 +600,12 @@ async function start(){
   state.stopsErr = st.status === 'rejected' ? st.reason.message : '';
   renderResults();
   if(f.status === 'rejected') document.getElementById('deps').innerHTML = '<div class="err">Baza pojazdów: ' + corsHint(f.reason) + '</div>';
-  renderFavs(); renderStopHead(); loadDeps();
+  renderFavs(); renderStopHead(); loadDeps(); loadAlerts();
   if(state.stopsErr) setTimeout(retryStops, 30000);
 }
 
 setInterval(() => { if(document.visibilityState==='visible' && document.getElementById('stopView').classList.contains('on')) loadDeps() }, 20000);
+setInterval(() => { if(document.visibilityState==='visible') loadAlerts() }, 5 * 60000);
 setInterval(() => { if(document.visibilityState==='visible' && map && document.getElementById('mapView').classList.contains('on')) loadGps() }, 15000);
 try{ if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', {scope: './'}) }catch(e){}
 start();
