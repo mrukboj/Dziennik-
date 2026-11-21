@@ -173,8 +173,8 @@ async function fetchJSON(u, ms = 20000){
   return JSON.parse(t);
 }
 
-async function getJSON(url){
-  if(state.proxy) return fetchJSON(state.proxy + encodeURIComponent(url));
+async function getJSON(url, ms){
+  if(state.proxy) return fetchJSON(state.proxy + encodeURIComponent(url), ms);
   const key = url.split('?')[0];
   const all = ['direct', ...FALLBACK_PROXIES.map((_, i) => i)];
   const route = hostRoute[key];
@@ -186,7 +186,7 @@ async function getJSON(url){
     try{
       // znacznik czasu, żeby pośrednik nie podawał starej kopii z pamięci
       const fresh = url + (url.includes('?') ? '&' : '?') + '_=' + Date.now();
-      const data = await fetchJSON(t === 'direct' ? url : FALLBACK_PROXIES[t](fresh));
+      const data = await fetchJSON(t === 'direct' ? url : FALLBACK_PROXIES[t](fresh), ms);
       hostRoute[key] = t;
       return data;
     }catch(e){ lastErr = e }
@@ -493,7 +493,9 @@ function cleanHtml(html){
 }
 
 async function loadAlerts(){
-  const [b, z] = await Promise.allSettled([getJSON(API.bsk), getJSON(API.znt)]);
+  state.alertsLoading = true;
+  const [b, z] = await Promise.allSettled([getJSON(API.bsk, 10000), getJSON(API.znt, 10000)]);
+  state.alertsLoading = false;
   const now = new Date(), seen = new Set(), list = [];
   const add = (r, kind) => {
     for(const x of (r.status === 'fulfilled' && r.value.results) || []){
@@ -539,7 +541,8 @@ function renderAlerts(){
   }
   const box = document.getElementById('infoList');
   const items = alertsFor(state.infoMode);
-  if(state.alertsErr) box.innerHTML = '<div class="err">Nie udało się pobrać komunikatów (' + esc(state.alertsErr) + ').</div>';
+  if(!state.alertsAt && !state.alertsErr) box.innerHTML = '<div class="muted">Wczytuję komunikaty ZTM…</div>';
+  else if(state.alertsErr) box.innerHTML = '<div class="err">Nie udało się pobrać komunikatów (' + esc(state.alertsErr) + ').</div>';
   else if(!items.length) box.innerHTML = '<div class="muted">Brak komunikatów w tej grupie.</div>';
   else box.innerHTML = items.map((a, i) => {
     const lines = a.lines.map(l => `<span class="ln ${isTramLine(l) ? '' : 'bus'}">${esc(l)}</span>`).join('');
@@ -599,12 +602,13 @@ async function retryStops(){
 async function start(){
   const info = document.getElementById('depInfo');
   info.textContent = 'Ładowanie bazy pojazdów i przystanków…';
+  loadAlerts();
   const [f, st] = await Promise.allSettled([loadFleet(), loadStops()]);
   info.textContent = '';
   state.stopsErr = st.status === 'rejected' ? st.reason.message : '';
   renderResults();
   if(f.status === 'rejected') document.getElementById('deps').innerHTML = '<div class="err">Baza pojazdów: ' + corsHint(f.reason) + '</div>';
-  renderFavs(); renderStopHead(); loadDeps(); loadAlerts();
+  renderFavs(); renderStopHead(); loadDeps();
   if(state.stopsErr) setTimeout(retryStops, 30000);
 }
 
