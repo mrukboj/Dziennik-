@@ -28,6 +28,7 @@
   .alert .body{display:none;font-size:14px;line-height:1.45;margin-top:6px}
   .alert .body p{margin:0 0 6px}
   .alert.open .body{display:block}
+  .alert.old{opacity:.6}
   .alert a{color:#1d4ed8}
   .stopAlert{background:#fff4d6;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px;font-size:13px;margin-top:6px}
   .tabs button.on{background:var(--acc);border-color:var(--acc);color:var(--ink);font-weight:600}
@@ -287,7 +288,7 @@ function renderResults(){
     const d = document.createElement('div');
     d.className = 'item';
     d.innerHTML = `<span class="ln ${s.t==='TRAM'?'':'bus'}">${s.c||'–'}</span>
-      <div class="hd"><b>${s.n}</b><small>${s.t==='TRAM'?'tramwaj':'autobus'} · ${s.z}</small></div>`;
+      <div class="hd"><b>${s.n}</b><small>${s.t==='TRAM'?'tramwaj':'autobus'}${s.z ? ' · ' + s.z : ''}</small></div>`;
     d.onclick = () => { selectStop(s); document.getElementById('q').value=''; box.innerHTML='' };
     box.appendChild(d);
   }
@@ -503,12 +504,15 @@ async function loadAlerts(){
       seen.add(x.url || x.title);
       list.push({kind, lines: x.lineNumbers || [], title: x.title, summary: x.summary, body: cleanHtml(x.content),
         url: x.url, from, alarmFrom: ztmDate(x.alarmDateFrom), alarmTo: ztmDate(x.alarmDateTo)});
+      // ZTM długo trzyma stare komunikaty; te po okresie wyróżnienia albo sprzed 14 dni idą na dół jako starsze
+      const a = list[list.length - 1];
+      a.old = kind !== 'now' && (a.alarmTo ? a.alarmTo < now : (a.from && now - a.from > 14 * 864e5));
     }
   };
   add(b, 'now'); add(z, 'route');
   if(b.status === 'rejected' && z.status === 'rejected'){ state.alertsErr = b.reason.message; return renderAlerts() }
   state.alertsErr = '';
-  list.sort((a, c) => (a.kind === 'now' ? 0 : 1) - (c.kind === 'now' ? 0 : 1) || (c.from || 0) - (a.from || 0));
+  list.sort((a, c) => (a.old ? 1 : 0) - (c.old ? 1 : 0) || (a.kind === 'now' ? 0 : 1) - (c.kind === 'now' ? 0 : 1) || (c.from || 0) - (a.from || 0));
   state.alerts = list;
   state.alertsAt = now;
   renderAlerts(); renderStopAlerts();
@@ -521,7 +525,7 @@ function alertsFor(mode){
 }
 
 function renderAlerts(){
-  const tram = alertsFor('tram').length;
+  const tram = alertsFor('tram').filter(a => !a.old).length;
   document.getElementById('infoCount').textContent = tram ? tram : '';
   const f = document.getElementById('infoFilter');
   const modes = [['tram', 'Tramwaje'], ...(state.stop ? [['stop', state.stop.n + ' ' + state.stop.c]] : []), ['all', 'Wszystkie']];
@@ -541,8 +545,8 @@ function renderAlerts(){
     const lines = a.lines.map(l => `<span class="ln ${isTramLine(l) ? '' : 'bus'}">${esc(l)}</span>`).join('');
     const when = a.alarmFrom ? 'od ' + dayStr(a.alarmFrom) + (a.alarmTo ? ' do ' + dayStr(a.alarmTo) : '')
       : a.from ? 'opublikowano ' + dayStr(a.from) : '';
-    return `<div class="alert ${a.kind}" data-i="${i}">
-      <div class="lns">${lines}<span class="kind">${a.kind === 'now' ? 'utrudnienie' : 'zmiana trasy'}</span></div>
+    return `<div class="alert ${a.kind}${a.old ? ' old' : ''}" data-i="${i}">
+      <div class="lns">${lines}<span class="kind">${a.kind === 'now' ? 'utrudnienie' : 'zmiana trasy'}${a.old ? ' · starszy' : ''}</span></div>
       <h3>${esc(a.title)}</h3>
       <div class="meta">${when} · stuknij, aby rozwinąć</div>
       <div class="body">${a.body || esc(a.summary || '')}${a.url ? `<p><a href="${esc(a.url)}" target="_blank" rel="noopener">Pełny komunikat na ztm.gda.pl</a></p>` : ''}</div>
@@ -557,7 +561,7 @@ function renderAlerts(){
 
 function renderStopAlerts(){
   const box = document.getElementById('stopAlerts');
-  const rel = alertsFor('stop');
+  const rel = alertsFor('stop').filter(a => !a.old);
   if(!rel.length){ box.innerHTML = ''; return }
   const lines = [...new Set(rel.flatMap(a => a.lines).filter(l => state.stopLines.includes(l)))];
   box.innerHTML = `<div class="stopAlert">⚠ ${rel.length === 1 ? 'Komunikat' : rel.length + ' komunikaty'} dla linii ${lines.map(esc).join(', ')} · <u>pokaż</u></div>`;
