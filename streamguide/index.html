@@ -53,6 +53,8 @@ main{padding:0 0 90px}
 .pin h2{margin:0 0 4px;font-size:20px;line-height:1.2}
 .pin p{color:#c3c7d2;margin:10px 0}
 .btn{height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--s2);display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--ink);font-size:14px}
+.btn img{width:22px;height:22px;border-radius:6px}
+.pl span{display:block;padding:4px;margin:-4px}
 .btn.pri{background:var(--acc);color:#16130a;border-color:var(--acc);font-weight:600}
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 label.f{display:block;font-size:13px;color:var(--mut);margin:14px 0 6px}
@@ -249,6 +251,24 @@ function tags(it){
   if(it.vote>0)t.push(`<span class="tag">★ ${it.vote.toFixed(1)}</span>`);
   return t.join('');
 }
+const APPS={
+ 8:{pk:'com.netflix.mediaclient',u:q=>'https://www.netflix.com/search?q='+q},
+ 1899:{pk:'com.wbd.stream',u:q=>'https://play.hbomax.com/search?q='+q},
+ 384:{pk:'com.wbd.stream',u:q=>'https://play.hbomax.com/search?q='+q},
+ 337:{pk:'com.disney.disneyplus',u:q=>'https://www.disneyplus.com/search?q='+q},
+ 119:{pk:'com.amazon.avod.thirdpartyclient',u:q=>'https://www.primevideo.com/search/?phrase='+q},
+ 350:{u:q=>'https://tv.apple.com/pl/search?term='+q},
+ 1773:{u:q=>'https://www.skyshowtime.com/pl'}
+};
+const isAndroid=/Android/i.test(navigator.userAgent);
+function appUrl(pid,title){
+  const a=APPS[pid],q=encodeURIComponent(title);
+  if(!a)return 'https://www.google.com/search?q='+encodeURIComponent(title+' '+((provById(pid)||{}).name||''));
+  const web=a.u(q);
+  if(isAndroid&&a.pk)return 'intent://'+web.replace(/^https:\/\//,'')+'#Intent;scheme=https;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(web)+';end';
+  return web;
+}
+const openApp=(pid,title)=>{location.href=appUrl(pid,title)};
 const logo=id=>{const p=provById(id);return p&&p.logo?`<img src="${IMG}w92${p.logo}" alt="${esc(p.name)}" title="${esc(p.name)}" loading="lazy">`:''};
 function dayName(d){
   const dt=new Date(d+'T12:00:00'),diff=Math.round((new Date(d+'T00:00:00')-T0)/DAY);
@@ -263,7 +283,7 @@ function renderList(){
   let h='',cur='';
   shown.forEach((it,i)=>{
     if(it.date!==cur){cur=it.date;const[a,b]=dayName(cur);h+=`<div class="day${cur===TODAY?' today':''}${cur<TODAY?' past':''}" id="d-${cur}"><b>${a}</b><span>${b}</span></div>`}
-    h+=`<button class="card${it.date<TODAY?' past':''}" data-i="${i}">${it.poster?`<img class="po" src="${IMG}w154${it.poster}" alt="" loading="lazy">`:'<div class="po">brak</div>'}<div class="ci"><div class="t">${esc(it.title)}</div><div class="sub">${it.k==='tv'?esc(epLabel(it)):esc(it.orig&&it.orig!==it.title?it.orig:'Film')}</div><div class="tags">${tags(it)}</div></div><div class="pl">${it.prov.slice(0,3).map(logo).join('')}</div></button>`;
+    h+=`<button class="card${it.date<TODAY?' past':''}" data-i="${i}">${it.poster?`<img class="po" src="${IMG}w154${it.poster}" alt="" loading="lazy">`:'<div class="po">brak</div>'}<div class="ci"><div class="t">${esc(it.title)}</div><div class="sub">${it.k==='tv'?esc(epLabel(it)):esc(it.orig&&it.orig!==it.title?it.orig:'Film')}</div><div class="tags">${tags(it)}</div></div><div class="pl">${it.prov.slice(0,3).map(id=>`<span data-open="${id}">${logo(id)}</span>`).join('')}</div></button>`;
   });
   $('#list').innerHTML=h;
 }
@@ -284,7 +304,7 @@ function toToday(){
 function openDetail(it){
   const eps=it.k==='tv'?it.eps.map(e=>`<div class="small" style="margin-top:6px"><b style="color:var(--ink)">S${e.s} E${e.e}</b> ${esc(e.n||'')}${e.ov?'<br>'+esc(e.ov):''}</div>`).join(''):'';
   const[a,b]=dayName(it.date);
-  $('#dpan').innerHTML=`${it.bd?`<img class="bd" src="${IMG}w780${it.bd}" alt="">`:''}<div class="pin"><h2>${esc(it.title)}</h2><div class="small">${a}, ${b}${it.vote>0?' · ★ '+it.vote.toFixed(1):''}</div><div class="tags">${tags(it)}</div><div class="pl" style="flex-direction:row;margin-top:8px">${it.prov.map(logo).join('')}</div><p>${esc(it.ov||'Brak opisu po polsku.')}</p>${eps}<div class="btns">${it.k==='tv'?`<button class="btn pri" id="folBtn">${isFol(it.id)?'Przestań obserwować':'★ Obserwuj'}</button>`:''}<a class="btn" href="https://www.themoviedb.org/${it.k==='tv'?'tv':'movie'}/${it.id}" target="_blank" rel="noopener">TMDB</a><button class="btn" id="closeD">Zamknij</button></div></div>`;
+  $('#dpan').innerHTML=`${it.bd?`<img class="bd" src="${IMG}w780${it.bd}" alt="">`:''}<div class="pin"><h2>${esc(it.title)}</h2><div class="small">${a}, ${b}${it.vote>0?' · ★ '+it.vote.toFixed(1):''}</div><div class="tags">${tags(it)}</div><div class="btns">${it.prov.map(id=>`<a class="btn pri" href="${esc(appUrl(id,it.title))}">${logo(id)} Otwórz w ${esc((provById(id)||{}).name||'aplikacji')}</a>`).join('')}</div><p>${esc(it.ov||'Brak opisu po polsku.')}</p>${eps}<div class="btns">${it.k==='tv'?`<button class="btn pri" id="folBtn">${isFol(it.id)?'Przestań obserwować':'★ Obserwuj'}</button>`:''}<a class="btn" href="https://www.themoviedb.org/${it.k==='tv'?'tv':'movie'}/${it.id}" target="_blank" rel="noopener">TMDB</a><button class="btn" id="closeD">Zamknij</button></div></div>`;
   $('#detail').classList.add('open');
   $('#closeD').onclick=()=>$('#detail').classList.remove('open');
   const fb=$('#folBtn');if(fb)fb.onclick=()=>{toggleFollow(it.id,it.title);$('#detail').classList.remove('open')};
@@ -330,7 +350,7 @@ $('#closeSet').onclick=()=>$('#settings').classList.remove('open');
 for(const id of['detail','settings'])$('#'+id).addEventListener('click',e=>{if(e.target.id===id)e.target.classList.remove('open')});
 $('#types').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;view.type=b.dataset.t;renderAll();toToday()});
 $('#plats').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;view.plat=+b.dataset.p||null;renderAll();toToday()});
-$('#list').addEventListener('click',e=>{const b=e.target.closest('.card');if(b)openDetail(shown[+b.dataset.i])});
+$('#list').addEventListener('click',e=>{const o=e.target.closest('[data-open]');if(o){e.stopPropagation();const it=shown[+o.closest('.card').dataset.i];openApp(+o.dataset.open,it.title);return}const b=e.target.closest('.card');if(b)openDetail(shown[+b.dataset.i])});
 $('#refBtn').onclick=()=>fetchAll(true).then(toToday);
 $('#setBtn').onclick=openSettings;
 $('#todayBtn').onclick=toToday;
