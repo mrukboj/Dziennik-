@@ -102,7 +102,7 @@ a{color:var(--acc)}
   <div class="tg"><span>Tylko seriale z USA</span><input type="checkbox" id="optUS"></div>
   <div class="btns"><button class="btn pri" id="saveBtn">Zapisz i odśwież</button><button class="btn" id="closeSet">Zamknij</button></div>
   <p class="small">Daty odcinków to daty emisji z TMDB, zwykle premiera w USA. W Polsce odcinek bywa dzień później. Ten produkt korzysta z API TMDB, ale nie jest przez TMDB zatwierdzony.</p>
-  <p class="small">Wersja 4 (CANAL+ przez link canalplus.com)</p>
+  <p class="small">Wersja 5 (linki do stron tytułów)</p>
 </div></div></div>
 
 <script>
@@ -272,15 +272,64 @@ function findApp(pid){
   return null;
 }
 const isAndroid=/Android/i.test(navigator.userAgent);
-function appUrl(pid,title){
+// --- bezpośrednie linki do tytułu ---
+const CAT=[[/netflix/i,/netflix\.com/i],[/hbo|^max$/i,/max\.com|hbomax/i],[/disney/i,/disneyplus/i],[/prime video/i,/primevideo|amazon\./i],[/apple tv/i,/apple\.com/i],[/canal/i,/canalplus|mycan\.al/i]];
+const WD_PROPS={8:['P1874'],1899:['P8298'],384:['P8298'],337:['P7596','P7595'],119:['P8055'],350:['P9751','P9586']};
+let LINKS=LS.get('sg_links',{});
+const lkey=it=>it.k+it.id;
+function canon(pid){if(WD_PROPS[pid])return pid;const n=(provById(pid)||{}).name||'';for(const[re,v]of APPS_BY_NAME)if(re.test(n)&&typeof v==='number')return v;return pid}
+function urlFits(pid,u){const n=(provById(pid)||{}).name||'';const c=CAT.find(x=>x[0].test(n));return !!(c&&c[1].test(u))}
+function wrap(pid,web,fallback){
+  const a=findApp(pid);
+  if(isAndroid&&a&&a.pk)return 'intent://'+web.replace(/^https?:\/\//,'')+'#Intent;scheme=https;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(fallback||web)+';end';
+  return web;
+}
+function directUrl(pid,it){
+  const L=LINKS[lkey(it)]||{};
+  if(L.manual&&urlFits(pid,L.manual))return L.manual;
+  return (L.auto||{})[pid]||null;
+}
+function appUrl(pid,it){
+  const title=it.title;
+  const d=directUrl(pid,it);if(d)return wrap(pid,d);
   const a=findApp(pid),q=encodeURIComponent(title),g='https://www.google.com/search?q='+encodeURIComponent(title+' '+((provById(pid)||{}).name||''));
   if(!a)return g;
   if(!a.u)return isAndroid?'intent:#Intent;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(g)+';end':g;
-  const web=a.u(q);
-  if(isAndroid&&a.pk)return 'intent://'+web.replace(/^https:\/\//,'')+'#Intent;scheme=https;package='+a.pk+';S.browser_fallback_url='+encodeURIComponent(web)+';end';
-  return web;
+  return wrap(pid,a.u(q));
 }
-const openApp=(pid,title)=>{location.href=appUrl(pid,title)};
+const openApp=(pid,it)=>{location.href=appUrl(pid,it)};
+async function wdFormats(){
+  const c=LS.get('sg_wdfmt',null);if(c&&Date.now()-c.ts<30*DAY)return c.f;
+  const ids=[...new Set(Object.values(WD_PROPS).flat())];
+  const r=await fetch('https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids='+ids.join('|')).then(r=>r.json());
+  const f={};for(const id of ids){const cl=((r.entities||{})[id]||{}).claims||{};const v=cl.P1630&&cl.P1630[0].mainsnak.datavalue;if(v)f[id]=v.value}
+  LS.set('sg_wdfmt',{ts:Date.now(),f});return f;
+}
+async function resolveLinks(it){
+  const key=lkey(it),L=LINKS[key]||{};
+  if(L.ts&&Date.now()-L.ts<14*DAY)return false;
+  const auto={};
+  try{
+    const ext=await tmdb(`/${it.k==='tv'?'tv':'movie'}/${it.id}/external_ids`);const q=ext.wikidata_id;
+    if(q){
+      const [r,fmt]=await Promise.all([fetch('https://www.wikidata.org/w/api.php?action=wbgetentities&props=claims&format=json&origin=*&ids='+q).then(r=>r.json()),wdFormats()]);
+      const claims=((r.entities||{})[q]||{}).claims||{};
+      for(const pid of it.prov){
+        for(const P of WD_PROPS[canon(pid)]||[]){
+          const v=claims[P]&&claims[P][0].mainsnak.datavalue;
+          if(v&&fmt[P]){const u=fmt[P].replace('$1',v.value);if(urlFits(pid,u)){auto[pid]=u;break}}
+        }
+      }
+    }
+  }catch(e){return false}
+  LINKS[key]={...LINKS[key],auto,ts:Date.now()};LS.set('sg_links',LINKS);return true;
+}
+function setManual(it,text){
+  const key=lkey(it);
+  let m=(String(text).match(/https?:\/\/\S+/)||[''])[0].replace(/[)\].,]+$/,'');
+  m=m.replace(/^https?:\/\/mycan\.al\//i,'https://www.canalplus.com/');
+  LINKS[key]={...(LINKS[key]||{}),manual:m||undefined};LS.set('sg_links',LINKS);
+}
 const logo=id=>{const p=provById(id);return p&&p.logo?`<img src="${IMG}w92${p.logo}" alt="${esc(p.name)}" title="${esc(p.name)}" loading="lazy">`:''};
 function dayName(d){
   const dt=new Date(d+'T12:00:00'),diff=Math.round((new Date(d+'T00:00:00')-T0)/DAY);
@@ -316,8 +365,17 @@ function toToday(){
 function openDetail(it){
   const eps=it.k==='tv'?it.eps.map(e=>`<div class="small" style="margin-top:6px"><b style="color:var(--ink)">S${e.s} E${e.e}</b> ${esc(e.n||'')}${e.ov?'<br>'+esc(e.ov):''}</div>`).join(''):'';
   const[a,b]=dayName(it.date);
-  $('#dpan').innerHTML=`${it.bd?`<img class="bd" src="${IMG}w780${it.bd}" alt="">`:''}<div class="pin"><h2>${esc(it.title)}</h2><div class="small">${a}, ${b}${it.vote>0?' · ★ '+it.vote.toFixed(1):''}</div><div class="tags">${tags(it)}</div><div class="btns">${it.prov.map(id=>`<a class="btn pri" href="${esc(appUrl(id,it.title))}">${logo(id)} Otwórz w ${esc((provById(id)||{}).name||'aplikacji')}</a>`).join('')}</div><p>${esc(it.ov||'Brak opisu po polsku.')}</p>${eps}<div class="btns">${it.k==='tv'?`<button class="btn pri" id="folBtn">${isFol(it.id)?'Przestań obserwować':'★ Obserwuj'}</button>`:''}<a class="btn" href="https://www.themoviedb.org/${it.k==='tv'?'tv':'movie'}/${it.id}" target="_blank" rel="noopener">TMDB</a><button class="btn" id="closeD">Zamknij</button></div></div>`;
+  $('#dpan').innerHTML=`${it.bd?`<img class="bd" src="${IMG}w780${it.bd}" alt="">`:''}<div class="pin"><h2>${esc(it.title)}</h2><div class="small">${a}, ${b}${it.vote>0?' · ★ '+it.vote.toFixed(1):''}</div><div class="tags">${tags(it)}</div><div class="btns" id="obtns"></div><div id="mlink"></div><p>${esc(it.ov||'Brak opisu po polsku.')}</p>${eps}<div class="btns">${it.k==='tv'?`<button class="btn pri" id="folBtn">${isFol(it.id)?'Przestań obserwować':'★ Obserwuj'}</button>`:''}<a class="btn" href="https://www.themoviedb.org/${it.k==='tv'?'tv':'movie'}/${it.id}" target="_blank" rel="noopener">TMDB</a><button class="btn" id="closeD">Zamknij</button></div></div>`;
   $('#detail').classList.add('open');
+  const drawBtns=()=>{
+    const L=LINKS[lkey(it)]||{};
+    $('#obtns').innerHTML=it.prov.map(id=>`<a class="btn pri" href="${esc(appUrl(id,it))}">${logo(id)} ${directUrl(id,it)?'Otwórz stronę w':'Szukaj w'} ${esc((provById(id)||{}).name||'aplikacji')}</a>`).join('')+(L.manual&&!it.prov.some(id=>urlFits(id,L.manual))?`<a class="btn pri" href="${esc(L.manual)}">Otwórz zapisany link</a>`:'');
+    $('#mlink').innerHTML=L.manual?`<div class="small" style="margin-top:8px">Masz zapisany link do tego tytułu. <button class="btn" id="mDel" style="height:32px;margin-left:6px">Usuń</button></div>`:`<details style="margin-top:8px"><summary class="small">Podepnij link z aplikacji</summary><div class="small" style="margin:6px 0">W aplikacji platformy stuknij „Udostępnij” przy tym tytule i wklej tutaj.</div><input type="text" id="mIn" placeholder="wklej link"><button class="btn" id="mSave" style="margin-top:6px">Zapisz link</button></details>`;
+    const sv=$('#mSave');if(sv)sv.onclick=()=>{const v=$('#mIn').value.trim();if(v){setManual(it,v);drawBtns()}};
+    const dl=$('#mDel');if(dl)dl.onclick=()=>{setManual(it,'');drawBtns()};
+  };
+  drawBtns();
+  resolveLinks(it).then(ch=>{if(ch&&$('#detail').classList.contains('open'))drawBtns()});
   $('#closeD').onclick=()=>$('#detail').classList.remove('open');
   const fb=$('#folBtn');if(fb)fb.onclick=()=>{toggleFollow(it.id,it.title);$('#detail').classList.remove('open')};
 }
@@ -362,7 +420,7 @@ $('#closeSet').onclick=()=>$('#settings').classList.remove('open');
 for(const id of['detail','settings'])$('#'+id).addEventListener('click',e=>{if(e.target.id===id)e.target.classList.remove('open')});
 $('#types').addEventListener('click',e=>{const b=e.target.closest('[data-t]');if(!b)return;view.type=b.dataset.t;renderAll();toToday()});
 $('#plats').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;view.plat=+b.dataset.p||null;renderAll();toToday()});
-$('#list').addEventListener('click',e=>{const o=e.target.closest('[data-open]');if(o){e.stopPropagation();const it=shown[+o.closest('.card').dataset.i];openApp(+o.dataset.open,it.title);return}const b=e.target.closest('.card');if(b)openDetail(shown[+b.dataset.i])});
+$('#list').addEventListener('click',e=>{const o=e.target.closest('[data-open]');if(o){e.stopPropagation();const it=shown[+o.closest('.card').dataset.i];openApp(+o.dataset.open,it);return}const b=e.target.closest('.card');if(b)openDetail(shown[+b.dataset.i])});
 $('#refBtn').onclick=()=>fetchAll(true).then(toToday);
 $('#setBtn').onclick=openSettings;
 $('#todayBtn').onclick=toToday;
