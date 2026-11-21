@@ -443,9 +443,10 @@ async function loadDeps(){
 }
 
 // ---------- bilet miesięczny (wpisywany ręcznie) ----------
-// Android: otwiera aplikację System FALA (pakiet ze Sklepu Play); gdy jej nie ma, Chrome otworzy stronę systemfala.pl
+// Chrome na Androidzie nie pozwala stronom uruchamiać aplikacji, które nie mają linków do otwierania (FALA ich nie ma).
+// Dlatego na Androidzie przycisk otwiera kartę aplikacji w Sklepie Play, gdzie jest przycisk „Otwórz”.
 const FALA_URL = /Android/i.test(navigator.userAgent)
-  ? 'intent://open#Intent;package=pl.assecods.innompa.systemfala;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;S.browser_fallback_url=' + encodeURIComponent('https://systemfala.pl') + ';end'
+  ? 'market://details?id=pl.assecods.innompa.systemfala'
   : 'https://systemfala.pl';
 state.ticket = LS.get('kt_ticket', {from: '2026-11-19', to: '2026-12-18'});
 function ymd(t){ const [y, m, d] = t.split('-').map(Number); return Date.UTC(y, m - 1, d) }
