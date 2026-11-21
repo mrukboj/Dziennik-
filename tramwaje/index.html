@@ -175,7 +175,7 @@
     </div>
   </section>
 </main>
-<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 21.11 15:00</footer>
+<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 21.11 15:40</footer>
 
 <dialog id="dlg">
   <b>Ustawienia</b>
@@ -185,6 +185,8 @@
   <div class="setsec">Bilet miesięczny</div>
   <div class="row"><input id="tkFrom" type="date"><span>–</span><input id="tkTo" type="date"></div>
   <div class="row"><button id="tkNew" class="chip">Kupiłem nowy od dziś (30 dni)</button></div>
+  <div class="muted">Link przycisku FALA (opcjonalnie, np. http-shortcuts://…). Puste = Sklep Play.</div>
+  <input id="falaLink" placeholder="http-shortcuts://…">
   <div class="setsec">Ulubione przystanki</div>
   <div id="roleList"></div>
   <div class="setsec">Pośrednik</div>
@@ -465,7 +467,9 @@ function renderTicket(){
     else{ txt = `Bilet: jeszcze ${left} ${left === 1 ? 'dzień' : 'dni'}<small>ważny do ${to}</small>`; if(left <= 3) cls = 'warn' }
   }
   el.className = 'ticketBar ' + cls;
-  el.innerHTML = `<span class="tk">${txt}</span><a class="fala" href="${FALA_URL}" rel="noopener">FALA ↗</a>`;
+  // własny skrót (np. z aplikacji HTTP Shortcuts uruchamiającej FALĘ) ma pierwszeństwo przed Sklepem Play
+  const falaHref = LS.get('kt_falaLink', '') || FALA_URL;
+  el.innerHTML = `<span class="tk">${txt}</span><a class="fala" href="${esc(falaHref)}" rel="noopener">FALA ↗</a>`;
 }
 
 // ---------- grafik zmian ----------
@@ -1032,6 +1036,7 @@ document.getElementById('tInfo').onclick = () => tab('info');
 document.getElementById('tSet').onclick = () => {
   document.getElementById('proxy').value = state.proxy;
   document.getElementById('schedPat').value = state.sched.pattern || '';
+  document.getElementById('falaLink').value = LS.get('kt_falaLink', '');
   document.getElementById('tkFrom').value = (state.ticket && state.ticket.from) || '';
   document.getElementById('tkTo').value = (state.ticket && state.ticket.to) || '';
   document.getElementById('schedAnchor').value = state.sched.anchor || '';
@@ -1050,6 +1055,7 @@ document.getElementById('tkNew').onclick = () => {
 document.getElementById('dlgOk').onclick = () => {
   state.proxy = document.getElementById('proxy').value.trim();
   LS.set('kt_proxy', state.proxy);
+  LS.set('kt_falaLink', document.getElementById('falaLink').value.trim());
   state.ticket = {from: document.getElementById('tkFrom').value, to: document.getElementById('tkTo').value};
   LS.set('kt_ticket', state.ticket);
   state.sched = {pattern: document.getElementById('schedPat').value.trim(), anchor: document.getElementById('schedAnchor').value};
