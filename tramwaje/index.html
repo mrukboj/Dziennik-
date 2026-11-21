@@ -495,7 +495,10 @@ const notArrival = (d, stop) => norm(d.headsign || '') !== norm(stop.n || '');
 // ---------- rozkład jazdy (stopTimes z ZTM) ----------
 API.stopTimes = (date, routeId) => `https://ckan2.multimediagdansk.pl/stopTimes?date=${date}&routeId=${routeId}`;
 const ttCache = new Map();
-const localDate = (d = new Date()) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+// rozkład ZTM jest w czasie polskim, niezależnie od strefy telefonu
+const WAW = new Intl.DateTimeFormat('en-CA', {timeZone: 'Europe/Warsaw', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'});
+function waw(d = new Date()){ const p = Object.fromEntries(WAW.formatToParts(d).map(x => [x.type, x.value])); return {date: `${p.year}-${p.month}-${p.day}`, min: (+p.hour) * 60 + (+p.minute)} }
+const localDate = (d = new Date()) => waw(d).date;
 const BASE = Date.UTC(1899, 11, 30);
 function ztmMin(t){             // "1899-12-30T05:32:00" -> minuty od północy dnia kursowania (także po północy)
   const m = /^(\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d)/.exec(t || ''); if(!m) return null;
@@ -542,12 +545,12 @@ async function openTrip(d, fromStop){
     const start = d.scheduledTripStartTime ? new Date(d.scheduledTripStartTime) : null;
     const date = localDate(start || new Date());
     const runs = await routeDay(d.routeId, date);
-    const startMin = start ? start.getHours() * 60 + start.getMinutes() : null;
+    const startMin = start ? waw(start).min : null;
     const cand = runs.filter(r => r.trip === d.tripId);
     const run = cand.sort((a, b) => Math.abs((a.start % 1440) - startMin) - Math.abs((b.start % 1440) - startMin))[0];
     if(!run) throw new Error('nie znalazłem tego kursu w rozkładzie');
     const delay = d.status === 'REALTIME' && d.delayInSeconds != null ? Math.round(d.delayInSeconds / 60) : 0;
-    const base = new Date(date + 'T00:00:00'); const nowMin = Math.round((Date.now() - base) / 60000);
+    const nw = waw(); const nowMin = nw.date === date ? nw.min : (nw.date > date ? nw.min + 1440 : -1);
     list.innerHTML = run.stops.filter(x => x.pass).map(x => {
       const st = stopById(x.stop), est = x.t + delay;
       const here = fromStop && x.stop === fromStop.id;
@@ -626,7 +629,7 @@ async function renderTt(){
   head.insertAdjacentHTML('beforeend', `<b style="flex:1">${esc(t.route.n)} · ${esc(st ? st.n + ' ' + st.c : '')}</b>` + dayChips); bindDays();
   const times = rs.map(r => r.stops.find(x => x.stop === t.stop && x.pass)).filter(Boolean).map(x => x.t).sort((a, b) => a - b);
   const uniq = [...new Set(times)];
-  const nowMin = t.tomorrow ? -1 : new Date().getHours() * 60 + new Date().getMinutes();
+  const nowMin = t.tomorrow ? -1 : waw().min;
   const next = uniq.find(m => m >= nowMin);
   const byH = new Map();
   for(const m of uniq){ const h = Math.floor(m / 60) % 24; if(!byH.has(h)) byH.set(h, []); byH.get(h).push(m) }
