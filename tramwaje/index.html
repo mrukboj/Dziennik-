@@ -338,10 +338,10 @@ async function loadDeps(){
 let map, layer;
 function initMap(){
   map = L.map('map', {zoomControl:false}).setView([54.37, 18.62], 12);
-  // CARTO Voyager: szybszy serwer kafelków i spokojniejsze tło, na którym lepiej widać tramwaje
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19, subdomains: 'abcd', keepBuffer: 4, updateWhenIdle: false, updateWhenZooming: false,
-    attribution: '© OpenStreetMap · © CARTO'
+  // OpenStreetMap; jeden adres zamiast starych poddomen a/b/c (zalecane przez OSM, szybsze po HTTP/2)
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, keepBuffer: 4, updateWhenIdle: false, updateWhenZooming: false,
+    attribution: '© OpenStreetMap'
   }).addTo(map);
   layer = L.layerGroup().addTo(map);
   // podczas przesuwania palcem nie przerysowujemy tramwajów, robimy to po puszczeniu
