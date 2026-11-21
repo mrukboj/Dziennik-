@@ -204,8 +204,9 @@ async function loadFleet(){
 // ---------- przystanki ----------
 async function loadStops(){
   const today = new Date().toISOString().slice(0,10);
-  const cached = LS.get('kt_stops', null);
-  if(cached && cached.d === today){ state.stops = cached.s; return }
+  try{ localStorage.removeItem('kt_stops') }catch(e){}   // stara, mogła zapisać niepełną listę
+  const cached = LS.get('kt_stops2', null);
+  if(cached && cached.d === today && cached.s.length > 500){ state.stops = cached.s; return }
   const data = await getJSON(API.stops);
   const d = new Date(), local = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   const keys = Object.keys(data).filter(k => data[k] && Array.isArray(data[k].stops));
@@ -219,8 +220,9 @@ async function loadStops(){
     seen.add(x.stopId);
     s.push({id:x.stopId, n:x.stopName, c:x.stopCode || '', z:x.zoneName || '', t:x.type});
   }
+  if(s.length < 500) throw new Error('niepełna lista przystanków (' + s.length + ')');
   state.stops = s;
-  LS.set('kt_stops', {d: today, s});
+  LS.set('kt_stops2', {d: today, s});
 }
 
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/ł/g,'l');
@@ -234,7 +236,9 @@ function renderResults(){
     .sort((a,b) => (a.t==='TRAM'?0:1)-(b.t==='TRAM'?0:1) || a.n.localeCompare(b.n) || a.c.localeCompare(b.c))
     .slice(0, 30);
   if(!hits.length){
-    box.innerHTML = state.stopsErr
+    box.innerHTML = !state.stops.length && !state.stopsErr
+      ? '<div class="muted">Wczytuję listę przystanków…</div>'
+      : state.stopsErr
       ? '<div class="err">Lista przystanków się nie wczytała (' + state.stopsErr + '). Spróbuję ponownie za chwilę.</div>'
       : '<div class="muted">Brak wyników' + (state.stops.length ? '' : ' — lista przystanków jest pusta') + '</div>';
     return;
@@ -423,6 +427,7 @@ async function start(){
   const [f, st] = await Promise.allSettled([loadFleet(), loadStops()]);
   info.textContent = '';
   state.stopsErr = st.status === 'rejected' ? st.reason.message : '';
+  renderResults();
   if(f.status === 'rejected') document.getElementById('deps').innerHTML = '<div class="err">Baza pojazdów: ' + corsHint(f.reason) + '</div>';
   renderFavs(); renderStopHead(); loadDeps();
   if(state.stopsErr) setTimeout(retryStops, 30000);
