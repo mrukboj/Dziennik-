@@ -104,7 +104,7 @@ a{color:var(--acc)}
   <div class="tg"><span>Tylko seriale z USA</span><input type="checkbox" id="optUS"></div>
   <div class="btns"><button class="btn pri" id="saveBtn">Zapisz i odśwież</button><button class="btn" id="closeSet">Zamknij</button></div>
   <p class="small">Daty odcinków to daty emisji z TMDB, zwykle premiera w USA. W Polsce odcinek bywa dzień później. Ten produkt korzysta z API TMDB, ale nie jest przez TMDB zatwierdzony.</p>
-  <p class="small">Wersja 6 (gatunki)</p>
+  <p class="small">Wersja 7 (horror w serialach)</p>
 </div></div></div>
 
 <script>
@@ -160,7 +160,7 @@ async function loadProviders(force){
 
 const BAD_TV=[10763,10767,10766]; // news, talk, soap
 async function tvItems(id,discProv,fromDisc){
-  const d=await tmdb('/tv/'+id,{append_to_response:'watch/providers'});
+  const d=await tmdb('/tv/'+id,{append_to_response:'watch/providers,keywords'});
   const pl=((d['watch/providers']||{}).results||{}).PL;
   const flat=(pl&&pl.flatrate||[]).map(x=>x.provider_id);
   const sel=selProv();
@@ -176,7 +176,7 @@ async function tvItems(id,discProv,fromDisc){
   }
   const byDate={};
   for(const e of eps)(byDate[e.air_date]=byDate[e.air_date]||[]).push({s:e.season_number,e:e.episode_number,n:e.name,ty:e.episode_type,ov:e.overview});
-  return Object.entries(byDate).map(([date,es])=>({k:'tv',id,date,title:d.name,orig:d.original_name,poster:d.poster_path,bd:d.backdrop_path,ov:d.overview,vote:d.vote_average,pop:d.popularity,genres:(d.genres||[]).map(g=>g.id),origin:d.origin_country||[],lang:d.original_language,prov,fromDisc,eps:es.sort((a,b)=>a.s-b.s||a.e-b.e)}));
+  return Object.entries(byDate).map(([date,es])=>({k:'tv',id,date,title:d.name,orig:d.original_name,poster:d.poster_path,bd:d.backdrop_path,ov:d.overview,vote:d.vote_average,pop:d.popularity,genres:(d.genres||[]).map(g=>g.id),origin:d.origin_country||[],lang:d.original_language,horror:((d.keywords||{}).results||[]).some(k=>/horror/i.test(k.name)),prov,fromDisc,eps:es.sort((a,b)=>a.s-b.s||a.e-b.e)}));
 }
 
 async function fetchAll(force){
@@ -184,7 +184,7 @@ async function fetchAll(force){
   if(loading)return;loading=true;
   try{
     await loadProviders(false);
-    const prov=selProv(), ck=[START,END,prov.join(','),S.follow.map(f=>f.id).join(',')].join('|');
+    const prov=selProv(), ck=['v7',START,END,prov.join(','),S.follow.map(f=>f.id).join(',')].join('|');
     const c=LS.get('sg_cache',null);
     if(!force&&c&&c.ck===ck&&Date.now()-c.ts<6*3600e3){items=c.items;renderAll();return}
     msg('Szukam premier i odcinków…');bar(.05);
@@ -239,7 +239,7 @@ const GENRES=[
  ['mys','Tajemnica',has([9648])],
  ['sf','Sci-Fi i fantasy',has([10765,878,14])],
  ['act','Akcja i przygoda',has([10759,28,12])],
- ['hor','Horror',has([27])],
+ ['hor','Horror',it=>has([27])(it)||!!it.horror],
  ['thr','Thriller',has([53])],
  ['doc','Dokument',has([99])],
  ['rea','Reality',has([10764])],
@@ -413,7 +413,7 @@ async function toggleFollow(id,name){
     if(!items.some(x=>x.k==='tv'&&x.id===id)){try{items.push(...await tvItems(id,new Set(),false))}catch(e){}}
   }
   LS.set('sg_follow',S.follow);
-  const c=LS.get('sg_cache',null);if(c){c.items=items;c.ck=[START,END,selProv().join(','),S.follow.map(f=>f.id).join(',')].join('|');LS.set('sg_cache',c)}
+  const c=LS.get('sg_cache',null);if(c){c.items=items;c.ck=['v7',START,END,selProv().join(','),S.follow.map(f=>f.id).join(',')].join('|');LS.set('sg_cache',c)}
   renderAll();
 }
 let qT;
