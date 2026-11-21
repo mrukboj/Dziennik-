@@ -6,8 +6,24 @@ from zoneinfo import ZoneInfo
 URL = ('https://ckan.multimediagdansk.pl/dataset/c24aa637-3619-4dc2-a171-a23eec8f2172/'
        'resource/4c4025f0-01bf-41f7-a39f-d156d201b82b/download/stops.json')
 
-req = urllib.request.Request(URL, headers={'User-Agent': 'ktory-tramwaj/1.0'})
-data = json.load(urllib.request.urlopen(req, timeout=120))
+import time
+from urllib.parse import quote
+
+SOURCES = [URL, 'https://tramwaje.mrukboj.workers.dev/?url=' + quote(URL, safe='')]
+data = None
+for attempt in range(3):
+    for src in SOURCES:
+        try:
+            req = urllib.request.Request(src, headers={'User-Agent': 'ktory-tramwaj/1.0'})
+            data = json.load(urllib.request.urlopen(req, timeout=90))
+            break
+        except Exception as e:
+            print(f'nie udało się ({src[:40]}…): {e}')
+    if data:
+        break
+    time.sleep(60)
+if not data:
+    sys.exit('serwer ZTM z listą przystanków nie odpowiada, spróbuję przy następnym uruchomieniu')
 
 today = datetime.now(ZoneInfo('Europe/Warsaw')).strftime('%Y-%m-%d')
 keys = [k for k, v in data.items() if isinstance(v, dict) and isinstance(v.get('stops'), list)]
