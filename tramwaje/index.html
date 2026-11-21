@@ -96,6 +96,7 @@
   #mapBar .chips{margin:0}
   #mapInfo{font-size:11px;color:var(--mut);margin-top:2px}
   .tram{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:1px 6px;border-radius:7px;color:#fff;font:700 13px/19px system-ui;border:2px solid #fff}
+  .tram.bus{border-radius:3px;font-size:12px}
   .tram small{font:500 11px/19px system-ui;opacity:.95}
   .tram i{font-style:normal;display:inline-block;font-size:10px;line-height:10px}
   .leaflet-popup-content{margin:8px 10px;font-size:13px;line-height:1.35}
@@ -107,6 +108,12 @@
   .roleRow{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:14px}
   .roleRow span{flex:1}
   .roleRow select{font-size:14px;padding:4px}
+  .ticketBar{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:10px;padding:8px 10px;margin-bottom:6px;font-size:14px}
+  .ticketBar .tk{flex:1}
+  .ticketBar .tk small{display:block;color:var(--mut);font-size:12px}
+  .ticketBar.warn{background:#fff4d6}
+  .ticketBar.bad{background:#fde2e2;color:#7f1d1d}
+  .fala{background:#14213d;color:#fff;border-radius:8px;padding:8px 12px;font-weight:700;text-decoration:none;font-size:14px;white-space:nowrap}
   .shiftLine{font-size:13px;color:var(--mut);padding:2px 2px 8px}
 </style>
 </head>
@@ -125,6 +132,7 @@
 
 <main>
   <section id="homeView">
+    <div id="ticketBar" class="ticketBar"></div>
     <div id="shiftLine" class="shiftLine"></div>
     <div id="homeAlerts"></div>
     <div id="homeCards"></div>
@@ -174,6 +182,9 @@
   <div class="setsec">Grafik zmian</div>
   <div class="muted">Cykl tygodni (1 = 6–14, 2 = 14–22, 3 = 22–6), zmiany od poniedziałku do piątku. Podaj poniedziałek tygodnia, który zaczyna cykl.</div>
   <div class="row"><input id="schedPat" placeholder="3212" style="width:90px"><input id="schedAnchor" type="date"></div>
+  <div class="setsec">Bilet miesięczny</div>
+  <div class="row"><input id="tkFrom" type="date"><span>–</span><input id="tkTo" type="date"></div>
+  <div class="row"><button id="tkNew" class="chip">Kupiłem nowy od dziś (30 dni)</button></div>
   <div class="setsec">Ulubione przystanki</div>
   <div id="roleList"></div>
   <div class="setsec">Pośrednik</div>
@@ -431,6 +442,26 @@ async function loadDeps(){
   }
 }
 
+// ---------- bilet miesięczny (wpisywany ręcznie) ----------
+const FALA_URL = 'https://systemfala.pl';
+state.ticket = LS.get('kt_ticket', {from: '2026-11-19', to: '2026-12-18'});
+function ymd(t){ const [y, m, d] = t.split('-').map(Number); return Date.UTC(y, m - 1, d) }
+function renderTicket(){
+  const el = document.getElementById('ticketBar'); if(!el) return;
+  const t = state.ticket;
+  let txt, cls = '';
+  if(!t || !t.to){ txt = 'Bilet miesięczny<small>wpisz daty w ⚙</small>' }
+  else{
+    const left = Math.round((ymd(t.to) - ymd(localDate())) / DAY);
+    const to = t.to.split('-').reverse().slice(0, 2).join('.');
+    if(left < 0){ txt = `Bilet wygasł ${to}<small>kup nowy i stuknij „Kupiłem” w ⚙</small>`; cls = 'bad' }
+    else if(left === 0){ txt = `Bilet ważny ostatni dzień<small>do ${to}</small>`; cls = 'bad' }
+    else{ txt = `Bilet: jeszcze ${left} ${left === 1 ? 'dzień' : 'dni'}<small>ważny do ${to}</small>`; if(left <= 3) cls = 'warn' }
+  }
+  el.className = 'ticketBar ' + cls;
+  el.innerHTML = `<span class="tk">${txt}</span><a class="fala" href="${FALA_URL}" target="_blank" rel="noopener">FALA ↗</a>`;
+}
+
 // ---------- grafik zmian ----------
 state.sched = LS.get('kt_sched', {pattern: '3212', anchor: '2026-11-23'});
 state.roles = LS.get('kt_roles', null);
@@ -668,11 +699,12 @@ function depRow(d, now, stop){
 
 async function loadHome(){
   const box = document.getElementById('homeCards');
+  renderTicket();
   if(!state.favs.length){
     box.innerHTML = '<div class="muted">Dodaj ulubione przystanki: wyszukaj przystanek i stuknij gwiazdkę. Pojawią się tutaj z najbliższymi odjazdami.</div>';
     return;
   }
-  renderShiftLine();
+  renderShiftLine(); renderTicket();
   state.depRefs = [];
   const favs = orderedFavs();
   const ids = [...box.querySelectorAll('.card')].map(c => c.dataset.id).join(',');
@@ -733,7 +765,11 @@ function initMap(){
   layer = L.layerGroup().addTo(map);
   // podczas przesuwania palcem nie przerysowujemy tramwajów, robimy to po puszczeniu
   map.on('movestart', () => { state.moving = true });
-  map.on('moveend', () => { state.moving = false; if(state.pendingGps){ const d = state.pendingGps; state.pendingGps = null; drawGps(d) } });
+  map.on('moveend', () => {
+    state.moving = false;
+    if(state.pendingGps){ const d = state.pendingGps; state.pendingGps = null; drawGps(d) }
+    else if(state.showBus && lastGps) drawGps(lastGps);     // autobusy rysujemy tylko w widocznym obszarze
+  });
   // gdy zmienia się wysokość ekranu (np. chowa się pasek adresu), mapa musi przeliczyć swój rozmiar
   try{ new ResizeObserver(() => map.invalidateSize({pan:false})).observe(document.getElementById('map')) }catch(e){}
   window.addEventListener('resize', () => map.invalidateSize({pan:false}));
@@ -755,7 +791,14 @@ function initMap(){
     };
     box.appendChild(b);
   }
+  const bb = document.createElement('button');
+  bb.className = 'chip' + (state.showBus ? ' on' : '');
+  bb.style.borderLeft = '4px solid #5b6170';
+  bb.textContent = 'Autobusy';
+  bb.onclick = () => { state.showBus = !state.showBus; LS.set('kt_showBus', state.showBus); bb.classList.toggle('on'); if(lastGps) drawGps(lastGps); else loadGps() };
+  box.appendChild(bb);
 }
+state.showBus = LS.get('kt_showBus', false);
 
 let lastGps = null;
 function tramLabel(g, vi){
@@ -768,6 +811,7 @@ function tramLabel(g, vi){
   let html = arrow + '<b>' + (g.routeShortName || '–') + '</b>';
   if(z >= 14) html += '<small>' + head + '</small>';
   if(z >= 15) html += '<small>· ' + vi.label + (delay >= 2 ? ' · +' + delay : '') + '</small>';
+  if(vi.v.type !== 'Tramwaj') return `<div class="tram bus" style="background:#5b6170">${html.replace(/<small>· [^<]*<\/small>/, '')}</div>`;
   return `<div class="tram" style="background:${vi.c.color}">${html}</div>`;
 }
 
@@ -800,8 +844,13 @@ function drawGps(data){
   let n = 0;
   for(const g of data.vehicles || []){
     const vi = vInfo(g.vehicleCode);
-    if(!vi || vi.v.type !== 'Tramwaj') continue;
-    if(!state.mapModels.includes(vi.c.key)) continue;
+    if(!vi) continue;
+    if(vi.v.type === 'Tramwaj'){ if(!state.mapModels.includes(vi.c.key)) continue }
+    else{
+      // autobusów jest kilkaset: tylko po przybliżeniu i tylko w widocznym obszarze
+      if(!state.showBus || map.getZoom() < 14) continue;
+      if(!map.getBounds().pad(0.3).contains([g.lat, g.lon])) continue;
+    }
     n++;
     const code = String(g.vehicleCode);
     seen.add(code);
@@ -824,7 +873,8 @@ function drawGps(data){
     if(!seen.has(code)){ layer.removeLayer(rec.m); markers.delete(code) }
   }
   const age = Math.round((Date.now() - new Date(data.lastUpdate)) / 60000);
-  info.textContent = n + ' tramwajów · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
+  const nb = [...markers.values()].filter(r => r.vi && r.vi.v.type !== 'Tramwaj').length;
+  info.textContent = (n - nb) + ' tramwajów' + (state.showBus ? (map.getZoom() < 14 ? ' · autobusy po przybliżeniu' : ' · ' + nb + ' autobusów') : '') + ' · stan z ' + hhmm(new Date(data.lastUpdate)) + (age >= 2 ? ' (sprzed ' + age + ' min!)' : '') + ' · co 15 s' + routeLabel('https://ckan2.multimediagdansk.pl/gpsPositions');
 }
 
 // ---------- komunikaty ZTM ----------
@@ -976,6 +1026,8 @@ document.getElementById('tInfo').onclick = () => tab('info');
 document.getElementById('tSet').onclick = () => {
   document.getElementById('proxy').value = state.proxy;
   document.getElementById('schedPat').value = state.sched.pattern || '';
+  document.getElementById('tkFrom').value = (state.ticket && state.ticket.from) || '';
+  document.getElementById('tkTo').value = (state.ticket && state.ticket.to) || '';
   document.getElementById('schedAnchor').value = state.sched.anchor || '';
   const rl = document.getElementById('roleList');
   rl.innerHTML = state.favs.length ? state.favs.map(f => `<div class="roleRow"><span>${esc(f.n)} ${esc(f.c)}</span>
@@ -983,9 +1035,17 @@ document.getElementById('tSet').onclick = () => {
     : '<div class="muted">Brak ulubionych przystanków.</div>';
   document.getElementById('dlg').showModal();
 };
+document.getElementById('tkNew').onclick = () => {
+  const today = localDate();
+  const end = new Date(ymd(today) + 29 * DAY).toISOString().slice(0, 10);   // miesięczny: dziś + 29 dni (jak 19.11–18.12)
+  document.getElementById('tkFrom').value = today;
+  document.getElementById('tkTo').value = end;
+};
 document.getElementById('dlgOk').onclick = () => {
   state.proxy = document.getElementById('proxy').value.trim();
   LS.set('kt_proxy', state.proxy);
+  state.ticket = {from: document.getElementById('tkFrom').value, to: document.getElementById('tkTo').value};
+  LS.set('kt_ticket', state.ticket);
   state.sched = {pattern: document.getElementById('schedPat').value.trim(), anchor: document.getElementById('schedAnchor').value};
   LS.set('kt_sched', state.sched);
   const roles = {};
