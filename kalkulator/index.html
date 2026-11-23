@@ -331,6 +331,20 @@ function setActiveProg(id){getMiesiac(curM()).activeProg=id;persist();renderDash
 function getProgi(){return S.settings.progi||[];}
 function getProgById(id){return getProgi().find(function(p){return p.id===id;})||getProgi()[getProgi().length-1];}
 function nettoWsp(p){return(p&&p.brutto>0)?p.netto/p.brutto:NETTO;}
+// Netto liczone z faktycznego brutto, niezależnie od wybranego celu:
+// progi (brutto -> netto) tworzą tabelę, między nimi liniowo; poniżej pierwszego progu jego współczynnik,
+// powyżej ostatniego przyrost jak między dwoma ostatnimi progami.
+function nettoZBrutto(brt){
+  var pts=getProgi().filter(function(p){return p.brutto>0&&p.netto>0;}).map(function(p){return[p.brutto,p.netto];})
+    .sort(function(a,b){return a[0]-b[0];});
+  if(!pts.length)return brt*NETTO;
+  if(brt<=pts[0][0])return brt*pts[0][1]/pts[0][0];
+  for(var i=1;i<pts.length;i++){
+    if(brt<=pts[i][0]){var a=pts[i-1],b=pts[i];return a[1]+(brt-a[0])*(b[1]-a[1])/(b[0]-a[0]);}
+  }
+  var L=pts[pts.length-1],P=pts.length>1?pts[pts.length-2]:[0,0];
+  return L[1]+(brt-L[0])*(L[1]-P[1])/(L[0]-P[0]);
+}
 function parseH(s){
   if(!s)return 0;
   s=String(s).trim();
@@ -525,7 +539,7 @@ function goTab(n){
 function renderDash(){
   updateBadge();
   var m=curM(),brt=bruttoSum(m),poz=dniPoz();
-  var activeProg=getProgById(curProg()),wsp=nettoWsp(activeProg),net=brt*wsp,cel=activeProg.netto;
+  var activeProg=getProgById(curProg()),wsp=nettoWsp(activeProg),net=nettoZBrutto(brt),cel=activeProg.netto;
   var progi=getProgi();
 
   var psr=document.getElementById('pselrow');psr.innerHTML='';
@@ -539,7 +553,7 @@ function renderDash(){
 
   var grid=document.getElementById('pgrid');grid.innerHTML='';
   progi.forEach(function(p){
-    var w=nettoWsp(p),netK=brt*w,pct=p.netto>0?Math.min(100,netK/p.netto*100):0,brak=Math.max(0,p.netto-netK);
+    var netK=net,pct=p.netto>0?Math.min(100,netK/p.netto*100):0,brak=Math.max(0,p.netto-netK);
     var c=document.createElement('div');c.className='pcard'+(curProg()===p.id?' active':'');
     c.innerHTML='<div class="plabel">'+p.name+'</div>'+
       '<div class="pvalue" style="color:'+p.color+'">'+fmt(p.netto)+' zł netto</div>'+
@@ -549,10 +563,10 @@ function renderDash(){
     grid.appendChild(c);
   });
 
-  var brakN=Math.max(0,cel-net),dN=poz>0?brakN/poz:0,dB=wsp>0?dN/wsp:0;
+  var brakN=Math.max(0,cel-net),dN=poz>0?brakN/poz:0,brakB=activeProg.brutto>0?Math.max(0,activeProg.brutto-brt):(wsp>0?brakN/wsp:0),dB=poz>0?brakB/poz:0;
   document.getElementById('damt').textContent=fmt(dB)+' zł brutto';
   document.getElementById('dsub').textContent=fmt(dN)+' zł netto | '+poz+' dni pozostało';
-  document.getElementById('dcel').textContent='cel: '+activeProg.name+' ('+Math.round(wsp*100)+'%)';
+  document.getElementById('dcel').textContent='cel: '+activeProg.name+' ('+Math.round(wsp*100)+'% netto)';
   document.getElementById('svbrt').textContent=fmt(brt)+' zł';
   var nel=document.getElementById('svnet');nel.textContent=fmt(net)+' zł';nel.className='sval '+(net>=cel?'good':'warn');
   document.getElementById('svdni').textContent=dniP(m);
@@ -706,7 +720,7 @@ function renderPoz(){
     var r5=document.createElement('div');r5.className='pf';
     var lUruch=document.createElement('div');lUruch.className='pf-lbl';lUruch.textContent='URUCHOMIENIE';
     var uRow=document.createElement('div');uRow.style.cssText='display:flex;gap:6px;margin-top:4px;';
-    [0,30,60].forEach(function(v){
+    [0,35,70].forEach(function(v){
       var b=document.createElement('button');
       b.className='ubtn'+(((p.uruch||0)===v)?' active':'');
       b.textContent=v===0?'Brak':v+' zł';
@@ -861,7 +875,7 @@ function renderHist(){
   months.forEach(function(m){
     var mData=S.miesiac[m],wpisy=mData.wpisy.slice().reverse();
     var totalBrt=mData.wpisy.reduce(function(a,w){return a+(w.total||0);},0);
-    var ap=getProgById(mData.activeProg),totalNet=totalBrt*nettoWsp(ap);
+    var totalNet=nettoZBrutto(totalBrt);
     var wydAvg=calcWydMiesiaca(m),isCur=m===curM();
     var block=document.createElement('div');block.className='month-block';
     var mh=document.createElement('div');mh.className='month-header';
@@ -919,7 +933,7 @@ function renderRoczne(){
   if(!months.length){area.innerHTML='<div class="empty">Brak danych. Dodaj wpisy w kilku miesiącach.</div>';return;}
 
   var allBrt=months.map(function(m){return bruttoSum(m);});
-  var allNet=months.map(function(m){var ap=getProgById(getMiesiac(m).activeProg);return bruttoSum(m)*nettoWsp(ap);});
+  var allNet=months.map(function(m){return nettoZBrutto(bruttoSum(m));});
   var allWyd=months.map(function(m){return calcWydMiesiaca(m);});
   var maxBrt=Math.max.apply(null,allBrt.concat([1]));
   var maxNet=Math.max.apply(null,allNet.concat([1]));
