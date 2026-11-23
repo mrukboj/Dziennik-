@@ -175,7 +175,7 @@
     </div>
   </section>
 </main>
-<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 21.11 15:50</footer>
+<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 23.11 20:20</footer>
 
 <dialog id="dlg">
   <b>Ustawienia</b>
@@ -474,6 +474,14 @@ function renderTicket(){
   // własny skrót (np. z aplikacji HTTP Shortcuts uruchamiającej FALĘ) ma pierwszeństwo przed Sklepem Play
   const falaHref = LS.get('kt_falaLink', '') || FALA_SHORTCUT || FALA_URL;
   el.innerHTML = `<span class="tk">${txt}</span><a class="fala" href="${esc(falaHref)}" rel="noopener">FALA ↗</a>`;
+}
+
+// opóźnienie po ludzku: ZTM podaje sekundy, ujemne = przed czasem
+function delayText(min){
+  if(min == null) return '';
+  if(min > 0) return `<span style="color:#b91c1c">opóźnienie ${min} min</span>`;
+  if(min < 0) return `<span style="color:#15803d">przed czasem ${-min} min</span>`;
+  return 'zgodnie z rozkładem';
 }
 
 // ---------- grafik zmian ----------
@@ -849,7 +857,7 @@ function popupHtml(g, vi){
     ${v.brand || ''} ${v.model || ''}, ${v.year || '?'}<br>
     miejsca: ${v.seats ?? '?'} siedz. / ${v.stand ?? '?'} stoj.<br>
     ${v.ac ? 'klimatyzacja' : 'bez klimatyzacji'} · ${(v.floor || '').replace('Pojazd ','')}<br>
-    ${delay != null ? 'opóźnienie: ' + delay + ' min' : ''}`;
+    ${delayText(delay)}`;
 }
 function drawGps(data){
   if(state.moving){ state.pendingGps = data; return }
