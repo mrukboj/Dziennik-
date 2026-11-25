@@ -175,7 +175,7 @@
     </div>
   </section>
 </main>
-<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 23.11 20:20</footer>
+<footer>dane: ZTM w Gdańsku (CC BY) · KA · wersja 25.11</footer>
 
 <dialog id="dlg">
   <b>Ustawienia</b>
@@ -528,8 +528,10 @@ function roleOf(f){
 }
 function orderedFavs(){
   const cs = commuteState();
-  const first = cs.atWork ? 'work' : 'home';
-  return [...state.favs].sort((a, b) => (roleOf(a) === first ? 0 : 1) - (roleOf(b) === first ? 0 : 1));
+  // przed zmianą: dom, potem przesiadki w drodze do pracy; po zmianie: praca, potem przesiadki w drodze do domu
+  const order = cs.atWork ? ['work', 'toHome'] : ['home', 'toWork'];
+  const rank = f => { const i = order.indexOf(roleOf(f)); return i < 0 ? 9 : i };
+  return [...state.favs].sort((a, b) => rank(a) - rank(b));
 }
 function renderShiftLine(){
   const el = document.getElementById('shiftLine'); if(!el) return;
@@ -1054,7 +1056,7 @@ document.getElementById('tSet').onclick = () => {
   document.getElementById('schedAnchor').value = state.sched.anchor || '';
   const rl = document.getElementById('roleList');
   rl.innerHTML = state.favs.length ? state.favs.map(f => `<div class="roleRow"><span>${esc(f.n)} ${esc(f.c)}</span>
-    <select data-id="${f.id}"><option value="">—</option><option value="home"${roleOf(f)==='home'?' selected':''}>dom</option><option value="work"${roleOf(f)==='work'?' selected':''}>praca</option></select></div>`).join('')
+    <select data-id="${f.id}"><option value="">—</option><option value="home"${roleOf(f)==='home'?' selected':''}>dom</option><option value="work"${roleOf(f)==='work'?' selected':''}>praca</option><option value="toWork"${roleOf(f)==='toWork'?' selected':''}>przesiadka → praca</option><option value="toHome"${roleOf(f)==='toHome'?' selected':''}>przesiadka → dom</option></select></div>`).join('')
     : '<div class="muted">Brak ulubionych przystanków.</div>';
   document.getElementById('dlg').showModal();
 };
