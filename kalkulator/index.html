@@ -120,6 +120,20 @@ header{background:var(--panel);border-bottom:1px solid var(--border);padding:14p
 .stat-box{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;}
 .stat-label{font-size:9px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;}
 .stat-val{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);margin-top:4px;}
+/* wypłaty rzeczywiste */
+.wy-years{display:flex;gap:6px;margin-bottom:10px;}
+.wy-yb{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--muted);font-family:var(--mono);font-size:12px;padding:6px;border-radius:6px;cursor:pointer;}
+.wy-yb.on{border-color:var(--yellow);color:var(--yellow);}
+.wy-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 10px;}
+.wy-row{display:flex;align-items:center;gap:5px;min-width:0;}
+.wy-m{font-family:var(--mono);font-size:10px;color:var(--muted);width:30px;flex-shrink:0;}
+.wy-row .pin{flex:1;width:0;min-width:0;padding:5px 6px;font-size:12px;}
+.wy-d{font-family:var(--mono);font-size:9px;width:34px;text-align:right;flex-shrink:0;}
+.wy-bon{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+.wy-bon .wy-m{width:auto;}
+.wy-bon .pin{flex:1;width:0;min-width:0;}
+.wy-cmp{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;line-height:1.7;}
+.wy-cmp b{color:var(--text);font-weight:700;}
 /* ustawienia */
 .spanel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;}
 .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
@@ -925,12 +939,69 @@ function renderHist(){
   });
 }
 
+
+// ── WYPŁATY RZECZYWISTE (netto z konta) + NAGRODA ROCZNA ──
+var WY_DEF={
+  '2025':{m:[4201.01,5021.72,4050.38,4487.66,5458.41,5527.59,5701.72,6212.79,5382.66,6233.89,5543.44,4047.95],nagroda:6245.79},
+  '2026':{m:[4179.25,4566.51,4941.21,6693.30,7166.65,7565.01,7957.88,6759.26,6120.79,6736.94,5878.35,null],nagroda:null}
+};
+var WY_MC=['STY','LUT','MAR','KWI','MAJ','CZE','LIP','SIE','WRZ','PAŹ','LIS','GRU'];
+function wyEnsure(){
+  if(!S.wyplaty){S.wyplaty=JSON.parse(JSON.stringify(WY_DEF));persist();}
+  if(!S.wyRok)S.wyRok=String(new Date().getFullYear());
+  if(!S.wyplaty[S.wyRok])S.wyplaty[S.wyRok]={m:[null,null,null,null,null,null,null,null,null,null,null,null],nagroda:null};
+}
+function wyNum(v){if(v===null||v===undefined)return null;v=String(v).replace(/\s/g,'').replace(',','.');if(v==='')return null;var n=parseFloat(v);return isNaN(n)?null:n;}
+function wyVal(v){return v===null||v===undefined?'':v.toFixed(2).replace('.',',');}
+function wySum(arr){return arr.reduce(function(a,b){return a+(b||0);},0);}
+function wyPct(a,b){if(!b)return'';var p=(a-b)/b*100;return(p>=0?'+':'')+p.toFixed(1).replace('.',',')+'%';}
+function wyCol(a,b){return a>=b?'var(--green)':'var(--red)';}
+function buildWyplatyCard(){
+  wyEnsure();
+  var card=document.createElement('div');card.className='year-card';
+  var rok=S.wyRok,d=S.wyplaty[rok],prev=S.wyplaty[String(+rok-1)];
+  var years=Object.keys(S.wyplaty).sort();
+  var nextY=String(+years[years.length-1]+1);
+  var yb=years.map(function(y){return'<button class="wy-yb'+(y===rok?' on':'')+'" data-y="'+y+'">'+y+'</button>';}).join('')+
+    '<button class="wy-yb" data-y="'+nextY+'" title="Dodaj rok">+</button>';
+  var rows=d.m.map(function(v,i){
+    var pv=prev?prev.m[i]:null,diff='';
+    if(v!==null&&pv)diff='<span class="wy-d" style="color:'+wyCol(v,pv)+'">'+wyPct(v,pv)+'</span>';
+    else diff='<span class="wy-d"></span>';
+    return'<div class="wy-row"><span class="wy-m">'+WY_MC[i]+'</span><input class="pin" type="text" inputmode="decimal" data-i="'+i+'" value="'+wyVal(v)+'" placeholder="—">'+diff+'</div>';
+  }).join('');
+  var filled=d.m.map(function(v,i){return v!==null?i:-1;}).filter(function(i){return i>=0;});
+  var sum=wySum(d.m),avg=filled.length?sum/filled.length:0,nag=d.nagroda||0;
+  var cmp='<b>'+filled.length+' mc</b> · suma <b style="color:var(--yellow)">'+fmt(sum)+' zł</b> · średnio <b>'+fmt(avg)+' zł</b><br>'+
+    'Razem z nagrodą: <b style="color:var(--yellow)">'+fmt(sum+nag)+' zł</b>';
+  if(prev){
+    var pSame=filled.reduce(function(a,i){return a+(prev.m[i]||0);},0);
+    var pAll=wySum(prev.m),pNag=prev.nagroda||0;
+    if(pSame>0)cmp+='<br>Te same mc w '+(+rok-1)+': '+fmt(pSame)+' zł → <b style="color:'+wyCol(sum,pSame)+'">'+(sum>=pSame?'+':'')+fmt(sum-pSame)+' zł ('+wyPct(sum,pSame)+')</b>';
+    if(pAll>0)cmp+='<br>Cały '+(+rok-1)+': '+fmt(pAll)+' zł, z nagrodą '+fmt(pAll+pNag)+' zł'+
+      '<br>vs '+rok+' z nagrodą: <b style="color:'+wyCol(sum+nag,pAll+pNag)+'">'+(sum+nag>=pAll+pNag?'+':'')+fmt(sum+nag-pAll-pNag)+' zł</b>';
+  }
+  card.innerHTML='<div class="year-title">💰 WYPŁATY NETTO Z KONTA</div>'+
+    '<div class="wy-years">'+yb+'</div>'+
+    '<div class="wy-grid">'+rows+'</div>'+
+    '<div class="wy-bon"><span class="wy-m">🏆 NAGRODA ROCZNA</span><input class="pin" type="text" inputmode="decimal" id="wyNag" value="'+wyVal(d.nagroda)+'" placeholder="—"></div>'+
+    '<div class="wy-cmp">'+cmp+'</div>';
+  card.querySelectorAll('.wy-yb').forEach(function(b){b.addEventListener('click',function(){
+    S.wyRok=b.getAttribute('data-y');wyEnsure();persist();renderRoczne();});});
+  card.querySelectorAll('.wy-row .pin').forEach(function(inp){inp.addEventListener('change',function(){
+    S.wyplaty[rok].m[+inp.getAttribute('data-i')]=wyNum(inp.value);persist();renderRoczne();});});
+  card.querySelector('#wyNag').addEventListener('change',function(e){
+    S.wyplaty[rok].nagroda=wyNum(e.target.value);persist();renderRoczne();});
+  return card;
+}
+
 // ── ROCZNE ──
 function renderRoczne(){
   var area=document.getElementById('roczne-area');area.innerHTML='';
+  area.appendChild(buildWyplatyCard());
   var months=Object.keys(S.miesiac).filter(function(m){return S.miesiac[m].wpisy&&S.miesiac[m].wpisy.length>0;});
   months.sort();
-  if(!months.length){area.innerHTML='<div class="empty">Brak danych. Dodaj wpisy w kilku miesiącach.</div>';return;}
+  if(!months.length){area.insertAdjacentHTML('beforeend','<div class="empty">Brak danych. Dodaj wpisy w kilku miesiącach.</div>');return;}
 
   var allBrt=months.map(function(m){return bruttoSum(m);});
   var allNet=months.map(function(m){return nettoZBrutto(bruttoSum(m));});
